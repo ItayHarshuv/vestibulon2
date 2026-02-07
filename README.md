@@ -6,6 +6,7 @@
 - [x] Setup database
 - [ ] Add login authentication (w/ clerk)
 - [ ] Make UI homepage
+- [ ] Build on ios and android (w/ capacitor)
 - [ ] Configure styling
 - [ ] Routing/clock page (parralel route?)
 - [ ] Learn about Server actions
