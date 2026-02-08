@@ -1,12 +1,19 @@
 import { type Config } from "drizzle-kit";
+import { config } from "dotenv";
 
-import { env } from "~/env";
+config({ path: ".env" });
+
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error("Missing DATABASE_URL in environment");
+}
 
 export default {
   schema: "./src/server/db/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: env.DATABASE_URL,
+    url: databaseUrl,
   },
   tablesFilter: ["vestibulon2_*"],
 } satisfies Config;
