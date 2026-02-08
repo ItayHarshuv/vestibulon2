@@ -4,8 +4,8 @@
 
 - [x] Deploy
 - [x] Setup database
-- [ ] Add login authentication (w/ clerk)
-- [ ] Make UI homepage
+- [x] Add login authentication (w/ clerk)
+- [X] Make UI homepage
 - [ ] Build on ios and android (w/ capacitor)
 - [ ] Configure styling
 - [ ] Routing/clock page (parralel route?)
