@@ -1,5 +1,5 @@
-import { db } from "../src/server/db/index.js";
-import { posts } from "../src/server/db/schema.js";
+import { db } from "../src/server/db/index";
+import { posts } from "../src/server/db/schema";
 
 export default async function handler(req: any, res: any) {
   // Allow native apps (capacitor://localhost origin) to call this API.
