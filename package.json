@@ -29,6 +29,7 @@
     "@capacitor/ios": "^8.0.2",
     "@clerk/clerk-react": "^5.60.0",
     "@neondatabase/serverless": "^1.0.2",
+    "@vercel/node": "^5.5.33",
     "@vitejs/plugin-react": "^5.1.3",
     "dotenv": "^17.2.4",
     "drizzle-orm": "^0.41.0",

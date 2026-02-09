@@ -1,12 +1,108 @@
+import { useEffect, useState } from "react";
+import { getApiUrl } from "~/lib/api";
+
+interface Post {
+  id: number;
+  name: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
 export function HomePage() {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchPosts() {
+      try {
+        const response = await fetch(getApiUrl("/api/posts"));
+        if (!response.ok) {
+          throw new Error("Failed to fetch posts");
+        }
+        const data = await response.json();
+        setPosts(data);
+        setLoading(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+        setLoading(false);
+      }
+    }
+    fetchPosts();
+  }, []);
+
   return (
     <main
       dir="rtl"
       className="flex min-h-screen flex-col items-center bg-white px-6 pt-10"
     >
+      {/* Database Table Display */}
+      <div className="mb-8 w-full max-w-4xl">
+        <h2 className="mb-4 text-2xl font-bold text-gray-900">
+          Database Posts Table
+        </h2>
+        {loading && (
+          <p className="text-gray-600">Loading posts from database...</p>
+        )}
+        {error && <p className="text-red-600">Error: {error}</p>}
+        {!loading && !error && (
+          <div className="overflow-x-auto rounded-lg border border-gray-300">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-700">
+                    ID
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-700">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-700">
+                    Created At
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-700">
+                    Updated At
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {posts.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-6 py-4 text-center text-sm text-gray-500"
+                    >
+                      No posts found in database
+                    </td>
+                  </tr>
+                ) : (
+                  posts.map((post) => (
+                    <tr key={post.id} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
+                        {post.id}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {post.name || "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                        {new Date(post.createdAt).toLocaleString()}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                        {post.updatedAt
+                          ? new Date(post.updatedAt).toLocaleString()
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Top status text */}
       <p className="text-lg font-semibold text-gray-800">
-        יש להשלים את התרגול של השעה 13:15
+        14:15
       </p>
 
       {/* Call to action */}

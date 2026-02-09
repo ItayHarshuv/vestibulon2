@@ -7,7 +7,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "api-plugin",
+      configureServer(server) {
+        server.middlewares.use("/api/posts", async (req, res, next) => {
+          if (req.method === "GET") {
+            try {
+              const { db } = await import("./src/server/db/index.js");
+              const { posts } = await import("./src/server/db/schema.js");
+              const allPosts = await db.select().from(posts);
+              res.setHeader("Content-Type", "application/json");
+              res.statusCode = 200;
+              res.end(JSON.stringify(allPosts));
+            } catch (error) {
+              console.error("Error fetching posts:", error);
+              res.setHeader("Content-Type", "application/json");
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: "Failed to fetch posts" }));
+            }
+          } else {
+            next();
+          }
+        });
+      },
+    },
+  ],
   resolve: {
     alias: {
       "~": path.resolve(__dirname, "src"),
