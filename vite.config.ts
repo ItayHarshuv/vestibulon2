@@ -15,8 +15,8 @@ export default defineConfig({
         server.middlewares.use("/api/posts", async (req, res, next) => {
           if (req.method === "GET") {
             try {
-              const { db } = await import("./src/server/db/index.js");
-              const { posts } = await import("./src/server/db/schema.js");
+              const { db } = await import("./api/db/index");
+              const { posts } = await import("./api/db/schema");
               const allPosts = await db.select().from(posts);
               res.setHeader("Content-Type", "application/json");
               res.statusCode = 200;
