@@ -7,6 +7,14 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: "https",
   },
+  plugins: {
+    // On iOS WKWebView (especially with custom schemes like capacitor://),
+    // `document.cookie` can be unavailable. This bridges cookies via native
+    // storage so web auth SDKs can function.
+    CapacitorCookies: {
+      enabled: true,
+    },
+  },
 };
 
 export default config;
