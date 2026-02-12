@@ -7,7 +7,7 @@
 - [x] Add login authentication (w/ clerk)
 - [X] Make UI homepage
 - [X] Build on ios and android (w/ capacitor)
-- [ ] Build the entire DB schemas
+- [-] Build the entire DB schemas
 - [ ] Add practice page
 - [ ] Set user premmistions to write and read DB (w/clerk)
 - [ ] Schedule page

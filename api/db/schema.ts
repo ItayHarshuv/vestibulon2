@@ -5,16 +5,42 @@ import { index, pgTableCreator } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `vestibulon2_${name}`);
 
-export const posts = createTable(
-  "post",
+export const reps = createTable(
+  "rep",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    name: d.varchar({ length: 256 }),
-    createdAt: d
-      .timestamp({ withTimezone: true })
-      .$defaultFn(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+    userId: d.varchar("user_id", { length: 256 }).notNull(),
+    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    dizziness: d.integer(),
+    nausea: d.integer(),
+    generalDifficulty: d.integer("general_difficulty"),
+    restTime: d.integer("rest_time"),
+    startTime: d.timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: d.timestamp("end_time", { withTimezone: true }),
+    bpmEndOfRep: d.integer("bpm_end_of_rep"),
+    flagInterrupted: d.boolean("flag_interrupted").default(false),
+    flagPaused: d.boolean("flag_paused").default(false),
   }),
-  (t) => [index("name_idx").on(t.name)],
+  (t) => [index("rep_user_exercise_idx").on(t.userId, t.exerciseName)],
+);
+
+export const programs = createTable(
+  "program",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: d.varchar("user_id", { length: 256 }).notNull(),
+    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    numberOfSeconds: d.integer("number_of_seconds").notNull(),
+    numberOfRepetions: d.integer("number_of_repetions").notNull(),
+    metronomeBpm: d.integer("metronome_bpm").notNull(),
+    metronomeBpmTemp: d.integer("metronome_bpm_temp"),
+    position: d.varchar("position", { length: 256 }).notNull(),
+    background: d.varchar("background", { length: 256 }).notNull(),
+    recomendedVAS: d.integer("recomended_vas").notNull(),
+  }),
+  (t) => [index("program_user_exercise_idx").on(t.userId, t.exerciseName)],
 );
