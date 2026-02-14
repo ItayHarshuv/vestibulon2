@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useUser } from "@clerk/clerk-react";
 import { getApiUrl } from "~/lib/api";
 
 interface Post {
@@ -9,6 +10,7 @@ interface Post {
 }
 
 export function HomePage() {
+  const { user } = useUser();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,12 @@ export function HomePage() {
     }
     fetchPosts();
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      console.log("user_id:", user.id);
+    }
+  }, [user?.id]);
 
   return (
     <main
