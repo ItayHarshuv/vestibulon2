@@ -1,43 +1,7 @@
-import { useEffect, useState } from "react";
-import { useUser } from "@clerk/clerk-react";
-import { getApiUrl } from "~/lib/api";
-
-interface Post {
-  id: number;
-  name: string | null;
-  createdAt: string;
-  updatedAt: string | null;
-}
+import { useNavigate } from "react-router-dom";
 
 export function HomePage() {
-  const { user } = useUser();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchPosts() {
-      try {
-        const response = await fetch(getApiUrl("/api/posts"));
-        if (!response.ok) {
-          throw new Error("Failed to fetch posts");
-        }
-        const data = await response.json();
-        setPosts(data);
-        setLoading(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-        setLoading(false);
-      }
-    }
-    fetchPosts();
-  }, []);
-
-  useEffect(() => {
-    if (user?.id) {
-      console.log("user_id:", user.id);
-    }
-  }, [user?.id]);
+  const navigate = useNavigate();
 
   return (
     <main
@@ -116,7 +80,11 @@ export function HomePage() {
 
       {/* Start practice button */}
       <div className="mt-12 flex flex-col items-center">
-        <button className="flex h-48 w-48 items-center justify-center rounded-full bg-green-500 text-center text-2xl font-extrabold text-white shadow-lg transition-transform hover:scale-105 hover:bg-green-600">
+        <button
+          type="button"
+          onClick={() => navigate("/select-exercise")}
+          className="flex h-48 w-48 items-center justify-center rounded-full bg-green-500 text-center text-2xl font-extrabold text-white shadow-lg transition-transform hover:scale-105 hover:bg-green-600"
+        >
           התחלת
           <br />
           תרגול
