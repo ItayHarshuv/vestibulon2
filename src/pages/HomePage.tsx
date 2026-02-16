@@ -1,7 +1,55 @@
+import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 
 export function HomePage() {
   const navigate = useNavigate();
+  const { user, isLoaded } = useUser();
+  const [showGenderModal, setShowGenderModal] = useState(false);
+  const [selectedGender, setSelectedGender] = useState<"male" | "female" | null>(
+    null,
+  );
+  const [isSavingGender, setIsSavingGender] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const hasGenderInMetadata = useMemo(() => {
+    const unsafeGender = user?.unsafeMetadata?.gender;
+    const publicGender = user?.publicMetadata?.gender;
+    return (
+      unsafeGender === "male" ||
+      unsafeGender === "female" ||
+      publicGender === "male" ||
+      publicGender === "female"
+    );
+  }, [user?.publicMetadata?.gender, user?.unsafeMetadata?.gender]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!user) {
+      setShowGenderModal(false);
+      return;
+    }
+    setShowGenderModal(!hasGenderInMetadata);
+  }, [hasGenderInMetadata, isLoaded, user]);
+
+  async function handleConfirmGender() {
+    if (!user || !selectedGender) return;
+    try {
+      setIsSavingGender(true);
+      setSaveError(null);
+      await user.update({
+        unsafeMetadata: {
+          ...(user.unsafeMetadata as Record<string, unknown>),
+          gender: selectedGender,
+        },
+      });
+      setShowGenderModal(false);
+    } catch (error) {
+      setSaveError("שמירת לשון הפנייה נכשלה. נסה שוב.");
+    } finally {
+      setIsSavingGender(false);
+    }
+  }
 
   return (
     <main
@@ -90,6 +138,61 @@ export function HomePage() {
           תרגול
         </button>
       </div>
+
+      {showGenderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-6">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 text-right shadow-2xl">
+            <h2 className="text-2xl font-bold text-gray-900">
+              שלום! איזה כיף שהצטרפת. מה לשון הפנייה המועדף עליך?
+            </h2>
+
+            <fieldset className="mt-6 space-y-4">
+              <label className="flex cursor-pointer items-center gap-3 text-xl font-semibold text-gray-900">
+                <input
+                  type="radio"
+                  name="gender"
+                  value="male"
+                  checked={selectedGender === "male"}
+                  onChange={() => setSelectedGender("male")}
+                  className="h-5 w-5 accent-green-600"
+                />
+                <span>גבר</span>
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 text-xl font-semibold text-gray-900">
+                <input
+                  type="radio"
+                  name="gender"
+                  value="female"
+                  checked={selectedGender === "female"}
+                  onChange={() => setSelectedGender("female")}
+                  className="h-5 w-5 accent-green-600"
+                />
+                <span>אישה</span>
+              </label>
+            </fieldset>
+
+            {saveError && (
+              <p className="mt-4 rounded-md bg-red-50 p-2 text-sm text-red-700">
+                {saveError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleConfirmGender();
+                }}
+                disabled={!selectedGender || isSavingGender}
+                className="rounded-lg bg-green-500 px-10 py-3 text-2xl font-bold text-white transition hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                אישור
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
