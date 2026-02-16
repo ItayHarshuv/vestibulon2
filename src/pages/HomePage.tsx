@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
+import { HomeActionButton } from "../components/HomeActionButton";
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -69,61 +70,21 @@ export function HomePage() {
 
       {/* Button cards */}
       <div className="mt-8 flex w-full max-w-lg flex-col gap-5">
-        {/* קביעת זמני תרגול */}
-        <button className="flex items-center justify-between rounded-lg border-2 border-blue-500 px-6 py-5 text-right transition-colors hover:bg-blue-50">
-          <span className="text-lg font-semibold text-gray-800">
-            קביעת זמני תרגול
-          </span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-8 w-8 text-gray-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 6v6l4 2" />
-          </svg>
-        </button>
-
-        {/* צפייה בנתוני התרגול */}
-        <button className="flex items-center justify-between rounded-lg border-2 border-blue-500 px-6 py-5 text-right transition-colors hover:bg-blue-50">
-          <span className="text-lg font-semibold text-gray-800">
-            צפייה בנתוני התרגול
-          </span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-8 w-8 text-gray-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M3 20h18" />
-            <rect x="5" y="10" width="3" height="10" rx="0.5" />
-            <rect x="10.5" y="4" width="3" height="16" rx="0.5" />
-            <rect x="16" y="8" width="3" height="12" rx="0.5" />
-          </svg>
-        </button>
-
-        {/* הודעות מקלינאים */}
-        <button className="flex items-center justify-between rounded-lg border-2 border-blue-500 px-6 py-5 text-right transition-colors hover:bg-blue-50">
-          <span className="text-lg font-semibold text-gray-800">
-            הודעות מקלינאים
-          </span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-8 w-8 text-gray-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <rect x="2" y="4" width="20" height="16" rx="2" />
-            <path d="M22 4L12 13 2 4" />
-          </svg>
-        </button>
+        <HomeActionButton
+          to="/"
+          label="קביעת זמני תרגול"
+          iconSrc="/assets/icons/clock.svg"
+        />
+        <HomeActionButton
+          to="/"
+          label="צפייה בנתוני התרגול"
+          iconSrc="/assets/icons/bars-chart.svg"
+        />
+        <HomeActionButton
+          to="/"
+          label="הודעות מקלינאים"
+          iconSrc="/assets/icons/messages.svg"
+        />
       </div>
 
       {/* Start practice button */}
