@@ -34,7 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select({
         id: programs.id,
         exerciseName: programs.exerciseName,
+        numberOfSeconds: programs.numberOfSeconds,
         numberOfRepetions: programs.numberOfRepetions,
+        position: programs.position,
+        background: programs.background,
+        recomendedVAS: programs.recomendedVAS,
       })
       .from(programs)
       .where(eq(programs.userId, userId))

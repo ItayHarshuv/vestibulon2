@@ -123,6 +123,12 @@ const exerciseTemplates: ExerciseTemplate[] = [
   },
 ];
 
+export function getExerciseTemplateByName(exerciseName: string) {
+  return (
+    exerciseTemplates.find((exercise) => exercise.exName === exerciseName) ?? null
+  );
+}
+
 export function applyGenderToText(template: string, gender: Gender): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
     if (!(token in genderTokens)) {

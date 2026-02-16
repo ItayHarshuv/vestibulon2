@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import { getApiUrl } from "~/lib/api";
 
 interface Program {
   id: number;
   exerciseName: string;
+  numberOfSeconds: number;
   numberOfRepetions: number;
+  position: string;
+  background: string;
+  recomendedVAS: number;
 }
 
 export function SelectExercisePage() {
   const { user, isLoaded } = useUser();
+  const navigate = useNavigate();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +123,10 @@ export function SelectExercisePage() {
         <button
           type="button"
           disabled={!selectedProgram}
+          onClick={() => {
+            if (!selectedProgram) return;
+            void navigate(`/exercise-description/${selectedProgram.id}`);
+          }}
           className="rounded-lg bg-emerald-300 px-10 py-4 text-4xl font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           אישור

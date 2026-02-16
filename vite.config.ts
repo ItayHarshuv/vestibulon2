@@ -32,7 +32,11 @@ export default defineConfig({
                 .select({
                   id: programs.id,
                   exerciseName: programs.exerciseName,
+                  numberOfSeconds: programs.numberOfSeconds,
                   numberOfRepetions: programs.numberOfRepetions,
+                  position: programs.position,
+                  background: programs.background,
+                  recomendedVAS: programs.recomendedVAS,
                 })
                 .from(programs)
                 .where(eq(programs.userId, userId))
