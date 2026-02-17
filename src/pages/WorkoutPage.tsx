@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { useParams } from "react-router-dom";
 import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
@@ -16,6 +16,7 @@ interface Program {
 
 export function WorkoutPage() {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const { programId } = useParams<{ programId: string }>();
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,10 @@ export function WorkoutPage() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [currentBpm, setCurrentBpm] = useState(120);
+  const [activeRepId, setActiveRepId] = useState<number | null>(null);
   const hasLoggedCountdownEndRef = useRef(false);
+  const hasCreatedRepRef = useRef(false);
+  const hasPausedInRepRef = useRef(false);
 
   const userId = user?.id;
   const parsedProgramId = Number(programId);
@@ -72,6 +76,9 @@ export function WorkoutPage() {
     setCurrentBpm(program.metronomeBpmTemp ?? program.metronomeBpm);
     setIsPaused(false);
     hasLoggedCountdownEndRef.current = false;
+    hasCreatedRepRef.current = false;
+    hasPausedInRepRef.current = false;
+    setActiveRepId(null);
   }, [program]);
 
   useEffect(() => {
@@ -87,13 +94,82 @@ export function WorkoutPage() {
   }, [isPaused, program, remainingSeconds]);
 
   useEffect(() => {
+    if (!program || !isLoaded || !userId || hasCreatedRepRef.current) return;
+
+    hasCreatedRepRef.current = true;
+    const currentExerciseName = program.exerciseName;
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Missing auth token");
+        }
+
+        const response = await fetch(getApiUrl("/api/reps"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            exerciseName: currentExerciseName,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to create rep record");
+        }
+
+        const data = (await response.json()) as { id?: number };
+        setActiveRepId(typeof data.id === "number" ? data.id : null);
+      } catch (err) {
+        console.error("Error creating rep record:", err);
+      }
+    })();
+  }, [getToken, isLoaded, program, userId]);
+
+  useEffect(() => {
     if (!program || remainingSeconds !== 0 || hasLoggedCountdownEndRef.current) {
       return;
     }
 
+    if (activeRepId === null) return;
     hasLoggedCountdownEndRef.current = true;
-    console.log("end of countdown");
-  }, [program, remainingSeconds]);
+
+    const completedBpm = currentBpm;
+    const durationSeconds = program.numberOfSeconds;
+    const flagPaused = hasPausedInRepRef.current;
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Missing auth token");
+        }
+
+        const response = await fetch(getApiUrl("/api/reps"), {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            repId: activeRepId,
+            numberOfSeconds: durationSeconds,
+            bpmEndOfRep: completedBpm,
+            flagPaused,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update rep record");
+        }
+      } catch (err) {
+        console.error("Error updating rep record:", err);
+      }
+    })();
+  }, [activeRepId, currentBpm, getToken, program, remainingSeconds]);
 
   const exerciseTemplate = useMemo(() => {
     if (!program) return null;
@@ -171,7 +247,15 @@ export function WorkoutPage() {
       <div className="mt-8 flex justify-center">
         <button
           type="button"
-          onClick={() => setIsPaused((previousState) => !previousState)}
+          onClick={() =>
+            setIsPaused((previousState) => {
+              const nextState = !previousState;
+              if (nextState) {
+                hasPausedInRepRef.current = true;
+              }
+              return nextState;
+            })
+          }
           disabled={remainingSeconds === 0}
           className={`rounded-lg px-10 py-4 text-3xl font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
             isPaused ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
