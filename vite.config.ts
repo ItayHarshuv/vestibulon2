@@ -34,6 +34,8 @@ export default defineConfig({
                   exerciseName: programs.exerciseName,
                   numberOfSeconds: programs.numberOfSeconds,
                   numberOfRepetions: programs.numberOfRepetions,
+                  metronomeBpm: programs.metronomeBpm,
+                  metronomeBpmTemp: programs.metronomeBpmTemp,
                   position: programs.position,
                   background: programs.background,
                   recomendedVAS: programs.recomendedVAS,
