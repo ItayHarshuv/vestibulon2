@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { useParams } from "react-router-dom";
 import { Metronome } from "~/components/Metronome";
@@ -176,6 +176,45 @@ export function WorkoutPage() {
     return getExerciseTemplateByName(program.exerciseName);
   }, [program]);
 
+  const handleMetronomeBpmChange = useCallback(
+    (nextBpm: number) => {
+      setCurrentBpm(nextBpm);
+
+      if (!program || !userId) return;
+
+      setProgram((previousProgram) => {
+        if (!previousProgram) return previousProgram;
+        return {
+          ...previousProgram,
+          metronomeBpmTemp: nextBpm,
+        };
+      });
+
+      void (async () => {
+        try {
+          const response = await fetch(getApiUrl("/api/programs"), {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId,
+              programId: program.id,
+              metronomeBpmTemp: nextBpm,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to update metronome bpm temp");
+          }
+        } catch (err) {
+          console.error("Error updating metronome bpm temp:", err);
+        }
+      })();
+    },
+    [program, userId],
+  );
+
   if (loading) {
     return (
       <main
@@ -235,7 +274,7 @@ export function WorkoutPage() {
       <Metronome
         bpm={currentBpm}
         isRunning={isCountdownRunning}
-        onBpmChange={setCurrentBpm}
+        onBpmChange={handleMetronomeBpmChange}
       />
 
       <img
