@@ -7,6 +7,8 @@ import { SignUpPage } from "./pages/SignUpPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
 import { SelectExercisePage } from "./pages/SelectExercisePage";
 import { WorkoutPage } from "./pages/WorkoutPage";
+import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
+import { WorkoutRestPage } from "./pages/WorkoutRestPage";
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -27,6 +29,11 @@ export function App() {
             element={<ExerciseDescriptionPage />}
           />
           <Route path="/workout/:programId" element={<WorkoutPage />} />
+          <Route
+            path="/workout-finish/:programId/:repId"
+            element={<WorkoutFinishPage />}
+          />
+          <Route path="/workout-rest/:programId/:repId" element={<WorkoutRestPage />} />
           <Route path="/sign-in" element={<SignInPage />} />
           <Route path="/sign-up" element={<SignUpPage />} />
         </Routes>

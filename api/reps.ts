@@ -13,6 +13,10 @@ type UpdateRepBody = {
   numberOfSeconds?: unknown;
   bpmEndOfRep?: unknown;
   flagPaused?: unknown;
+  dizziness?: unknown;
+  nausea?: unknown;
+  generalDifficulty?: unknown;
+  general_difficulty?: unknown;
 };
 
 function parseCreateBody(body: unknown): CreateRepBody {
@@ -98,8 +102,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const hasNumberOfSeconds = body.numberOfSeconds !== undefined;
       const hasBpmEndOfRep = body.bpmEndOfRep !== undefined;
       const hasFlagPaused = body.flagPaused !== undefined;
+      const hasDizziness = body.dizziness !== undefined;
+      const hasNausea = body.nausea !== undefined;
+      const hasGeneralDifficulty =
+        body.generalDifficulty !== undefined || body.general_difficulty !== undefined;
 
-      if (!hasNumberOfSeconds && !hasBpmEndOfRep && !hasFlagPaused) {
+      if (
+        !hasNumberOfSeconds &&
+        !hasBpmEndOfRep &&
+        !hasFlagPaused &&
+        !hasDizziness &&
+        !hasNausea &&
+        !hasGeneralDifficulty
+      ) {
         res.status(400).json({
           error: "At least one updatable field is required",
         });
@@ -110,6 +125,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         endTime?: Date;
         bpmEndOfRep?: number;
         flagPaused?: boolean;
+        dizziness?: number;
+        nausea?: number;
+        generalDifficulty?: number;
       } = {};
 
       if (hasNumberOfSeconds) {
@@ -165,6 +183,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         valuesToUpdate.flagPaused = body.flagPaused;
+      }
+
+      if (hasDizziness) {
+        const dizziness =
+          typeof body.dizziness === "number" &&
+          Number.isInteger(body.dizziness) &&
+          body.dizziness >= 0 &&
+          body.dizziness <= 10
+            ? body.dizziness
+            : null;
+
+        if (dizziness === null) {
+          res.status(400).json({ error: "dizziness must be an integer between 0 and 10" });
+          return;
+        }
+
+        valuesToUpdate.dizziness = dizziness;
+      }
+
+      if (hasNausea) {
+        const nausea =
+          typeof body.nausea === "number" &&
+          Number.isInteger(body.nausea) &&
+          body.nausea >= 0 &&
+          body.nausea <= 10
+            ? body.nausea
+            : null;
+
+        if (nausea === null) {
+          res.status(400).json({ error: "nausea must be an integer between 0 and 10" });
+          return;
+        }
+
+        valuesToUpdate.nausea = nausea;
+      }
+
+      if (hasGeneralDifficulty) {
+        const generalDifficultyInput =
+          body.generalDifficulty !== undefined
+            ? body.generalDifficulty
+            : body.general_difficulty;
+        const generalDifficulty =
+          typeof generalDifficultyInput === "number" &&
+          Number.isInteger(generalDifficultyInput) &&
+          generalDifficultyInput >= 0 &&
+          generalDifficultyInput <= 10
+            ? generalDifficultyInput
+            : null;
+
+        if (generalDifficulty === null) {
+          res
+            .status(400)
+            .json({ error: "general_difficulty must be an integer between 0 and 10" });
+          return;
+        }
+
+        valuesToUpdate.generalDifficulty = generalDifficulty;
       }
 
       const updated = await db

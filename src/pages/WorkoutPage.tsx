@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
 import { getApiUrl } from "~/lib/api";
@@ -17,6 +17,7 @@ interface Program {
 export function WorkoutPage() {
   const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
+  const navigate = useNavigate();
   const { programId } = useParams<{ programId: string }>();
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,9 +26,14 @@ export function WorkoutPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [currentBpm, setCurrentBpm] = useState(120);
   const [activeRepId, setActiveRepId] = useState<number | null>(null);
+  const [workoutStartTimestampMs, setWorkoutStartTimestampMs] = useState<number | null>(
+    null,
+  );
   const hasLoggedCountdownEndRef = useRef(false);
   const hasCreatedRepRef = useRef(false);
   const hasPausedInRepRef = useRef(false);
+  const hasNavigatedToFinishRef = useRef(false);
+  const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
 
   const userId = user?.id;
   const parsedProgramId = Number(programId);
@@ -78,7 +84,10 @@ export function WorkoutPage() {
     hasLoggedCountdownEndRef.current = false;
     hasCreatedRepRef.current = false;
     hasPausedInRepRef.current = false;
+    hasNavigatedToFinishRef.current = false;
     setActiveRepId(null);
+    setWorkoutStartTimestampMs(null);
+    fallbackWorkoutStartTimestampRef.current = Date.now();
   }, [program]);
 
   useEffect(() => {
@@ -121,8 +130,16 @@ export function WorkoutPage() {
           throw new Error("Failed to create rep record");
         }
 
-        const data = (await response.json()) as { id?: number };
+        const data = (await response.json()) as { id?: number; startTime?: string };
         setActiveRepId(typeof data.id === "number" ? data.id : null);
+        if (typeof data.startTime === "string") {
+          const parsedStartTimestamp = Date.parse(data.startTime);
+          if (!Number.isNaN(parsedStartTimestamp)) {
+            setWorkoutStartTimestampMs(parsedStartTimestamp);
+            return;
+          }
+        }
+        setWorkoutStartTimestampMs(fallbackWorkoutStartTimestampRef.current);
       } catch (err) {
         console.error("Error creating rep record:", err);
       }
@@ -130,7 +147,12 @@ export function WorkoutPage() {
   }, [getToken, isLoaded, program, userId]);
 
   useEffect(() => {
-    if (!program || remainingSeconds !== 0 || hasLoggedCountdownEndRef.current) {
+    if (
+      !program ||
+      remainingSeconds !== 0 ||
+      hasLoggedCountdownEndRef.current ||
+      hasNavigatedToFinishRef.current
+    ) {
       return;
     }
 
@@ -167,9 +189,25 @@ export function WorkoutPage() {
         }
       } catch (err) {
         console.error("Error updating rep record:", err);
+      } finally {
+        hasNavigatedToFinishRef.current = true;
+        navigate(`/workout-finish/${program.id}/${activeRepId}`, {
+          state: {
+            workoutStartTimestampMs:
+              workoutStartTimestampMs ?? fallbackWorkoutStartTimestampRef.current,
+          },
+        });
       }
     })();
-  }, [activeRepId, currentBpm, getToken, program, remainingSeconds]);
+  }, [
+    activeRepId,
+    currentBpm,
+    getToken,
+    navigate,
+    program,
+    remainingSeconds,
+    workoutStartTimestampMs,
+  ]);
 
   const exerciseTemplate = useMemo(() => {
     if (!program) return null;
