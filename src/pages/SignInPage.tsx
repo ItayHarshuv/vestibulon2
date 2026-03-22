@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useSignIn } from "@clerk/clerk-react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  clerkErrorSchema,
+  getZodErrorMessage,
+  signInFormSchema,
+} from "~/lib/validation";
 
 export function SignInPage() {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -14,22 +19,30 @@ export function SignInPage() {
     e.preventDefault();
     if (!signIn || !isLoaded) return;
 
+    const formResult = signInFormSchema.safeParse({ username, password });
+    if (!formResult.success) {
+      setError(getZodErrorMessage(formResult.error, "ההתחברות נכשלה"));
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
+      const { password: validPassword, username: validUsername } =
+        formResult.data;
       const result = await signIn.create({
-        identifier: username,
-        password,
+        identifier: validUsername,
+        password: validPassword,
       });
 
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
-        navigate("/");
+        void navigate("/");
       }
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { message: string }[] };
-      setError(clerkError.errors?.[0]?.message ?? "ההתחברות נכשלה");
+      const clerkErrorResult = clerkErrorSchema.safeParse(err);
+      setError(clerkErrorResult.data?.errors?.[0]?.message ?? "ההתחברות נכשלה");
     } finally {
       setLoading(false);
     }
@@ -48,10 +61,7 @@ export function SignInPage() {
         </div>
       )}
 
-      <form
-        onSubmit={handleSignIn}
-        className="mt-8 w-full max-w-sm space-y-4"
-      >
+      <form onSubmit={handleSignIn} className="mt-8 w-full max-w-sm space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
             שם משתמש
@@ -60,7 +70,7 @@ export function SignInPage() {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="שם המשתמש שלך"
             required
           />
@@ -74,7 +84,7 @@ export function SignInPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="••••••••"
             required
           />

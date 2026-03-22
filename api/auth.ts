@@ -1,4 +1,13 @@
 import { verifyToken } from "@clerk/backend";
+import { z } from "zod";
+
+const verifiedTokenSchema = z.object({
+  sub: z.string().min(1),
+});
+
+const verifiedTokenErrorsSchema = z.object({
+  errors: z.array(z.unknown()).optional(),
+});
 
 function extractBearerToken(authorizationHeader: string | undefined) {
   if (!authorizationHeader) return null;
@@ -22,20 +31,16 @@ export async function getAuthenticatedUserIdFromHeader(
 
   try {
     const verified = await verifyToken(token, { secretKey });
-    const maybeErrors = (verified as { errors?: unknown }).errors;
-    if (Array.isArray(maybeErrors) && maybeErrors.length > 0) return null;
+    const errorResult = verifiedTokenErrorsSchema.safeParse(verified);
+    if (errorResult.success && (errorResult.data.errors?.length ?? 0) > 0) {
+      return null;
+    }
 
-    
-    const payload =
-      verified && typeof verified === "object"
-        ? (verified as {sub?: unknown })
-        : null;
+    const payloadResult = verifiedTokenSchema.safeParse(verified);
+    if (!payloadResult.success) return null;
 
-    const sub = payload?.sub;
-    if (typeof sub !== "string" || !sub) return null;
-
-    return sub;
-  } catch (error) {
+    return payloadResult.data.sub;
+  } catch {
     return null;
   }
 }

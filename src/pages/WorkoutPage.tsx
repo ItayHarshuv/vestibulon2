@@ -1,40 +1,50 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
 import { getApiUrl } from "~/lib/api";
-
-interface Program {
-  id: number;
-  exerciseName: string;
-  numberOfSeconds: number;
-  numberOfRepetions: number;
-  metronomeBpm: number;
-  metronomeBpmTemp: number | null;
-}
+import {
+  type ApiProgram,
+  createRepResponseSchema,
+  getZodErrorMessage,
+  programRouteParamsSchema,
+  programsResponseSchema,
+} from "~/lib/validation";
 
 export function WorkoutPage() {
   const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
+  const navigate = useNavigate();
   const { programId } = useParams<{ programId: string }>();
-  const [program, setProgram] = useState<Program | null>(null);
+  const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [currentBpm, setCurrentBpm] = useState(120);
   const [activeRepId, setActiveRepId] = useState<number | null>(null);
+  const [workoutStartTimestampMs, setWorkoutStartTimestampMs] = useState<
+    number | null
+  >(null);
   const hasLoggedCountdownEndRef = useRef(false);
   const hasCreatedRepRef = useRef(false);
   const hasPausedInRepRef = useRef(false);
+  const hasNavigatedToFinishRef = useRef(false);
+  const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
 
   const userId = user?.id;
-  const parsedProgramId = Number(programId);
+  const routeParamsResult = useMemo(
+    () => programRouteParamsSchema.safeParse({ programId }),
+    [programId],
+  );
+  const parsedProgramId = routeParamsResult.success
+    ? routeParamsResult.data.programId
+    : null;
 
   useEffect(() => {
     if (!isLoaded) return;
-    if (!userId || !Number.isInteger(parsedProgramId)) {
+    if (!userId || parsedProgramId === null) {
       setProgram(null);
       setLoading(false);
       return;
@@ -48,16 +58,26 @@ export function WorkoutPage() {
         setError(null);
 
         const response = await fetch(
-          getApiUrl(`/api/programs?userId=${encodeURIComponent(currentUserId)}`),
+          getApiUrl(
+            `/api/programs?userId=${encodeURIComponent(currentUserId)}`,
+          ),
         );
 
         if (!response.ok) {
           throw new Error("Failed to fetch programs");
         }
 
-        const data = (await response.json()) as Program[];
+        const dataResult = programsResponseSchema.safeParse(
+          await response.json(),
+        );
+        if (!dataResult.success) {
+          throw new Error(
+            getZodErrorMessage(dataResult.error, "Invalid programs response"),
+          );
+        }
+
         const selectedProgram =
-          data.find((item) => item.id === parsedProgramId) ?? null;
+          dataResult.data.find((item) => item.id === parsedProgramId) ?? null;
         setProgram(selectedProgram);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -78,14 +98,19 @@ export function WorkoutPage() {
     hasLoggedCountdownEndRef.current = false;
     hasCreatedRepRef.current = false;
     hasPausedInRepRef.current = false;
+    hasNavigatedToFinishRef.current = false;
     setActiveRepId(null);
+    setWorkoutStartTimestampMs(null);
+    fallbackWorkoutStartTimestampRef.current = Date.now();
   }, [program]);
 
   useEffect(() => {
     if (!program || isPaused || remainingSeconds <= 0) return;
 
     const timerId = window.setInterval(() => {
-      setRemainingSeconds((previousSeconds) => Math.max(0, previousSeconds - 1));
+      setRemainingSeconds((previousSeconds) =>
+        Math.max(0, previousSeconds - 1),
+      );
     }, 1000);
 
     return () => {
@@ -121,8 +146,23 @@ export function WorkoutPage() {
           throw new Error("Failed to create rep record");
         }
 
-        const data = (await response.json()) as { id?: number };
-        setActiveRepId(typeof data.id === "number" ? data.id : null);
+        const dataResult = createRepResponseSchema.safeParse(
+          await response.json(),
+        );
+        if (!dataResult.success) {
+          throw new Error(
+            getZodErrorMessage(dataResult.error, "Invalid rep response"),
+          );
+        }
+
+        setActiveRepId(dataResult.data.id);
+        const parsedStartTimestamp = Date.parse(dataResult.data.startTime);
+        if (!Number.isNaN(parsedStartTimestamp)) {
+          setWorkoutStartTimestampMs(parsedStartTimestamp);
+          return;
+        }
+
+        setWorkoutStartTimestampMs(fallbackWorkoutStartTimestampRef.current);
       } catch (err) {
         console.error("Error creating rep record:", err);
       }
@@ -130,7 +170,12 @@ export function WorkoutPage() {
   }, [getToken, isLoaded, program, userId]);
 
   useEffect(() => {
-    if (!program || remainingSeconds !== 0 || hasLoggedCountdownEndRef.current) {
+    if (
+      !program ||
+      remainingSeconds !== 0 ||
+      hasLoggedCountdownEndRef.current ||
+      hasNavigatedToFinishRef.current
+    ) {
       return;
     }
 
@@ -167,9 +212,26 @@ export function WorkoutPage() {
         }
       } catch (err) {
         console.error("Error updating rep record:", err);
+      } finally {
+        hasNavigatedToFinishRef.current = true;
+        void navigate(`/workout-finish/${program.id}/${activeRepId}`, {
+          state: {
+            workoutStartTimestampMs:
+              workoutStartTimestampMs ??
+              fallbackWorkoutStartTimestampRef.current,
+          },
+        });
       }
     })();
-  }, [activeRepId, currentBpm, getToken, program, remainingSeconds]);
+  }, [
+    activeRepId,
+    currentBpm,
+    getToken,
+    navigate,
+    program,
+    remainingSeconds,
+    workoutStartTimestampMs,
+  ]);
 
   const exerciseTemplate = useMemo(() => {
     if (!program) return null;
@@ -297,7 +359,9 @@ export function WorkoutPage() {
           }
           disabled={remainingSeconds === 0}
           className={`rounded-lg px-10 py-4 text-3xl font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-            isPaused ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
+            isPaused
+              ? "bg-green-500 hover:bg-green-600"
+              : "bg-red-500 hover:bg-red-600"
           }`}
         >
           {isPaused ? "המשך תרגול" : "השהייה"}

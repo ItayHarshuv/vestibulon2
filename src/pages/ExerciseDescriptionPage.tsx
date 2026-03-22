@@ -7,36 +7,34 @@ import {
   type Gender,
 } from "~/data/content";
 import { getApiUrl } from "~/lib/api";
-
-interface Program {
-  id: number;
-  exerciseName: string;
-  numberOfSeconds: number;
-  numberOfRepetions: number;
-  position: string;
-  background: string;
-  recomendedVAS: number;
-}
-
-function toGender(value: unknown): Gender | null {
-  if (value === "male" || value === "female") return value;
-  return null;
-}
+import {
+  type ApiProgram,
+  genderSchema,
+  getZodErrorMessage,
+  programRouteParamsSchema,
+  programsResponseSchema,
+} from "~/lib/validation";
 
 export function ExerciseDescriptionPage() {
   const { user, isLoaded } = useUser();
   const { programId } = useParams<{ programId: string }>();
   const navigate = useNavigate();
-  const [program, setProgram] = useState<Program | null>(null);
+  const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const userId = user?.id;
-  const parsedProgramId = Number(programId);
+  const routeParamsResult = useMemo(
+    () => programRouteParamsSchema.safeParse({ programId }),
+    [programId],
+  );
+  const parsedProgramId = routeParamsResult.success
+    ? routeParamsResult.data.programId
+    : null;
 
   useEffect(() => {
     if (!isLoaded) return;
-    if (!userId || !Number.isInteger(parsedProgramId)) {
+    if (!userId || parsedProgramId === null) {
       setLoading(false);
       setProgram(null);
       return;
@@ -50,16 +48,26 @@ export function ExerciseDescriptionPage() {
         setError(null);
 
         const response = await fetch(
-          getApiUrl(`/api/programs?userId=${encodeURIComponent(currentUserId)}`),
+          getApiUrl(
+            `/api/programs?userId=${encodeURIComponent(currentUserId)}`,
+          ),
         );
 
         if (!response.ok) {
           throw new Error("Failed to fetch programs");
         }
 
-        const data = (await response.json()) as Program[];
+        const dataResult = programsResponseSchema.safeParse(
+          await response.json(),
+        );
+        if (!dataResult.success) {
+          throw new Error(
+            getZodErrorMessage(dataResult.error, "Invalid programs response"),
+          );
+        }
+
         const selectedProgram =
-          data.find((item) => item.id === parsedProgramId) ?? null;
+          dataResult.data.find((item) => item.id === parsedProgramId) ?? null;
         setProgram(selectedProgram);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -77,18 +85,25 @@ export function ExerciseDescriptionPage() {
   }, [program]);
 
   const gender = useMemo<Gender>(() => {
-    const unsafeMetaGender = toGender(user?.unsafeMetadata?.gender);
-    if (unsafeMetaGender) return unsafeMetaGender;
+    const unsafeMetaGender = genderSchema.safeParse(
+      user?.unsafeMetadata?.gender,
+    );
+    if (unsafeMetaGender.success) return unsafeMetaGender.data;
 
-    const publicMetaGender = toGender(user?.publicMetadata?.gender);
-    if (publicMetaGender) return publicMetaGender;
+    const publicMetaGender = genderSchema.safeParse(
+      user?.publicMetadata?.gender,
+    );
+    if (publicMetaGender.success) return publicMetaGender.data;
 
     return "male";
   }, [user?.publicMetadata?.gender, user?.unsafeMetadata?.gender]);
 
   const renderedExerciseDescription = useMemo(() => {
     if (!exerciseTemplate) return "";
-    return applyGenderToText(exerciseTemplate.exTextDescriptionTemplate, gender);
+    return applyGenderToText(
+      exerciseTemplate.exTextDescriptionTemplate,
+      gender,
+    );
   }, [exerciseTemplate, gender]);
 
   if (loading) {
@@ -149,7 +164,7 @@ export function ExerciseDescriptionPage() {
         </button>
       </div>
 
-      <section className="mt-10 text-right text-3xl font-semibold leading-relaxed text-gray-900">
+      <section className="mt-10 text-right text-3xl leading-relaxed font-semibold text-gray-900">
         <p>מנח: {program.position}</p>
         <p>סביבת תרגול: {program.background}</p>
         <p>משך: {program.numberOfSeconds}</p>
@@ -158,7 +173,7 @@ export function ExerciseDescriptionPage() {
       </section>
 
       <section
-        className="mt-8 text-right text-2xl font-semibold leading-relaxed text-gray-900"
+        className="mt-8 text-right text-2xl leading-relaxed font-semibold text-gray-900"
         dangerouslySetInnerHTML={{
           __html: renderedExerciseDescription,
         }}
