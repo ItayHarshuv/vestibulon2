@@ -56,11 +56,46 @@ export const signInFormSchema = z.object({
   password: requiredTrimmedString("יש להזין סיסמה"),
 });
 
-export const signUpFormSchema = signInFormSchema;
-
-export const clerkErrorSchema = z.object({
-  errors: z.array(z.object({ message: z.string() })).optional(),
+export const signUpFormSchema = z.object({
+  username: requiredTrimmedString("יש להזין שם משתמש"),
+  email: z
+    .string({
+      required_error: "יש להזין כתובת אימייל",
+      invalid_type_error: "יש להזין כתובת אימייל",
+    })
+    .trim()
+    .email("יש להזין כתובת אימייל תקינה")
+    .transform((value) => value.toLowerCase()),
+  password: requiredTrimmedString("יש להזין סיסמה"),
 });
+
+export const authUserSchema = z.object({
+  id: requiredTrimmedString("Missing id"),
+  username: requiredTrimmedString("Missing username"),
+  email: z.string().email("Missing email"),
+  gender: genderSchema.nullable(),
+});
+
+export const authSessionResponseSchema = z.object({
+  user: authUserSchema.nullable(),
+});
+
+export const signInRequestSchema = signInFormSchema;
+export const signUpRequestSchema = signUpFormSchema;
+
+export const passwordResetRequestSchema = z.preprocess(
+  coerceObject,
+  z.object({
+    identifier: requiredTrimmedString("יש להזין שם משתמש או אימייל"),
+  })
+);
+
+export const updateProfileSchema = z.preprocess(
+  coerceObject,
+  z.object({
+    gender: genderSchema,
+  })
+);
 
 export const programRouteParamsSchema = z.object({
   programId: integerRouteParam("programId must be an integer"),
@@ -75,17 +110,11 @@ export const workoutLocationStateSchema = z.object({
   workoutStartTimestampMs: z.number().finite().optional(),
 });
 
-export const programsQuerySchema = z.preprocess(
-  coerceObject,
-  z.object({
-    userId: requiredTrimmedString("Missing userId query param"),
-  }),
-);
+export const programsQuerySchema = z.preprocess(coerceObject, z.object({}));
 
 export const updateProgramBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    userId: requiredTrimmedString("Missing userId"),
     programId: integerField("programId must be an integer"),
     metronomeBpmTemp: integerField("metronomeBpmTemp must be an integer"),
   }),
@@ -163,6 +192,7 @@ export const createRepResponseSchema = z.object({
 });
 
 export type ApiProgram = z.infer<typeof apiProgramSchema>;
+export type AuthUser = z.infer<typeof authUserSchema>;
 export type SignInForm = z.infer<typeof signInFormSchema>;
 export type SignUpForm = z.infer<typeof signUpFormSchema>;
 export type UpdateProgramBody = z.infer<typeof updateProgramBodySchema>;

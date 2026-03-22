@@ -15,7 +15,7 @@ export function getApiUrl(path: string) {
   const isNative = Capacitor.isNativePlatform();
 
   const envBase =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "";
+    (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
 
   if (isNative) {
     if (!envBase) {
@@ -37,3 +37,17 @@ export function getApiUrl(path: string) {
   return path;
 }
 
+export function apiFetch(path: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  const hasBody = init?.body !== undefined && init.body !== null;
+
+  if (hasBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return fetch(getApiUrl(path), {
+    ...init,
+    credentials: init?.credentials ?? "include",
+    headers,
+  });
+}

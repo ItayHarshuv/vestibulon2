@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
-import { getApiUrl } from "~/lib/api";
+import { useAuth } from "~/auth/AuthProvider";
+import { apiFetch } from "~/lib/api";
 
 interface Program {
   id: number;
@@ -14,32 +14,27 @@ interface Program {
 }
 
 export function SelectExercisePage() {
-  const { user, isLoaded } = useUser();
+  const { isLoading, user } = useAuth();
   const navigate = useNavigate();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = user?.id;
-
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!userId) {
+    if (isLoading) return;
+    if (!user) {
       setPrograms([]);
       setLoading(false);
       return;
     }
-    const currentUserId = userId;
 
     async function fetchPrograms() {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(
-          getApiUrl(`/api/programs?userId=${encodeURIComponent(currentUserId)}`),
-        );
+        const response = await apiFetch("/api/programs");
 
         if (!response.ok) {
           throw new Error("Failed to fetch programs");
@@ -55,7 +50,7 @@ export function SelectExercisePage() {
     }
 
     void fetchPrograms();
-  }, [isLoaded, userId]);
+  }, [isLoading, user]);
 
   const selectedProgram = useMemo(
     () => programs.find((program) => program.id === selectedProgramId) ?? null,

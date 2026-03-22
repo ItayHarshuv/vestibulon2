@@ -1,5 +1,6 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { ClerkProvider } from "@clerk/clerk-react";
+import type { ReactNode } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { Navbar } from "./components/Navbar";
 import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
@@ -10,34 +11,107 @@ import { WorkoutPage } from "./pages/WorkoutPage";
 import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
 import { WorkoutRestPage } from "./pages/WorkoutRestPage";
 
-const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+function AuthGate({ children }: { children: ReactNode }) {
+  const { isLoading, user } = useAuth();
 
-if (!clerkPublishableKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white text-lg text-gray-700">
+        טוען...
+      </main>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/sign-in" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function GuestOnly({ children }: { children: ReactNode }) {
+  const { isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white text-lg text-gray-700">
+        טוען...
+      </main>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 export function App() {
   return (
-    <ClerkProvider publishableKey={clerkPublishableKey}>
+    <AuthProvider>
       <BrowserRouter>
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/select-exercise" element={<SelectExercisePage />} />
+          <Route
+            path="/select-exercise"
+            element={
+              <AuthGate>
+                <SelectExercisePage />
+              </AuthGate>
+            }
+          />
           <Route
             path="/exercise-description/:programId"
-            element={<ExerciseDescriptionPage />}
+            element={
+              <AuthGate>
+                <ExerciseDescriptionPage />
+              </AuthGate>
+            }
           />
-          <Route path="/workout/:programId" element={<WorkoutPage />} />
+          <Route
+            path="/workout/:programId"
+            element={
+              <AuthGate>
+                <WorkoutPage />
+              </AuthGate>
+            }
+          />
           <Route
             path="/workout-finish/:programId/:repId"
-            element={<WorkoutFinishPage />}
+            element={
+              <AuthGate>
+                <WorkoutFinishPage />
+              </AuthGate>
+            }
           />
-          <Route path="/workout-rest/:programId/:repId" element={<WorkoutRestPage />} />
-          <Route path="/sign-in" element={<SignInPage />} />
-          <Route path="/sign-up" element={<SignUpPage />} />
+          <Route
+            path="/workout-rest/:programId/:repId"
+            element={
+              <AuthGate>
+                <WorkoutRestPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/sign-in"
+            element={
+              <GuestOnly>
+                <SignInPage />
+              </GuestOnly>
+            }
+          />
+          <Route
+            path="/sign-up"
+            element={
+              <GuestOnly>
+                <SignUpPage />
+              </GuestOnly>
+            }
+          />
         </Routes>
       </BrowserRouter>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }

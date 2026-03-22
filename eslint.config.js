@@ -4,7 +4,7 @@ import drizzle from "eslint-plugin-drizzle";
 
 export default tseslint.config(
   {
-    ignores: ["dist"],
+    ignores: ["dist", "android/app/build"],
   },
   {
     files: ["**/*.ts", "**/*.tsx"],

@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { useAuth } from "@clerk/clerk-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { WorkoutStopwatch } from "~/components/WorkoutStopwatch";
-import { getApiUrl } from "~/lib/api";
+import { apiFetch } from "~/lib/api";
 import {
   getZodErrorMessage,
   workoutFinishRouteParamsSchema,
@@ -43,7 +42,6 @@ function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
 }
 
 export function WorkoutFinishPage() {
-  const { getToken } = useAuth();
   const navigate = useNavigate();
   const { programId, repId } = useParams<{
     programId: string;
@@ -106,17 +104,8 @@ export function WorkoutFinishPage() {
       setIsSubmitting(true);
       setError(null);
 
-      const token = await getToken();
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
-
-      const response = await fetch(getApiUrl("/api/reps"), {
+      const response = await apiFetch("/api/reps", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           repId: parsedRepId,
           dizziness,

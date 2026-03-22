@@ -1,25 +1,25 @@
 import { useState } from "react";
-import { useSignUp } from "@clerk/clerk-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "~/auth/AuthProvider";
+import { apiFetch } from "~/lib/api";
 import {
-  clerkErrorSchema,
   getZodErrorMessage,
   signUpFormSchema,
 } from "~/lib/validation";
 
 export function SignUpPage() {
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { refreshSession } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signUp || !isLoaded) return;
 
-    const formResult = signUpFormSchema.safeParse({ username, password });
+    const formResult = signUpFormSchema.safeParse({ username, email, password });
     if (!formResult.success) {
       setError(getZodErrorMessage(formResult.error, "ההרשמה נכשלה"));
       return;
@@ -29,20 +29,30 @@ export function SignUpPage() {
     setError("");
 
     try {
-      const { password: validPassword, username: validUsername } =
-        formResult.data;
-      const result = await signUp.create({
-        username: validUsername,
+      const {
+        email: validEmail,
         password: validPassword,
+        username: validUsername,
+      } =
+        formResult.data;
+      const response = await apiFetch("/api/auth/sign-up", {
+        method: "POST",
+        body: JSON.stringify({
+          username: validUsername,
+          email: validEmail,
+          password: validPassword,
+        }),
       });
 
-      if (result.status === "complete" && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        void navigate("/");
+      const responseData = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(responseData.error ?? "ההרשמה נכשלה");
       }
+
+      await refreshSession();
+      void navigate("/");
     } catch (err: unknown) {
-      const clerkErrorResult = clerkErrorSchema.safeParse(err);
-      setError(clerkErrorResult.data?.errors?.[0]?.message ?? "ההרשמה נכשלה");
+      setError(err instanceof Error ? err.message : "ההרשמה נכשלה");
     } finally {
       setLoading(false);
     }
@@ -72,6 +82,20 @@ export function SignUpPage() {
             onChange={(e) => setUsername(e.target.value)}
             className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="בחר שם משתמש"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            אימייל
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            placeholder="your@email.com"
             required
           />
         </div>

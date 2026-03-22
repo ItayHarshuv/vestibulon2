@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAuthenticatedUserIdFromHeader } from "./auth.js";
+import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
 import { db } from "./db/index.js";
 import { reps } from "./db/schema.js";
 import {
@@ -10,23 +10,15 @@ import {
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST,PATCH,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With",
-  );
-
-  if (req.method === "OPTIONS") {
-    res.statusCode = 204;
-    res.end();
+  if (handleOptions(req, res, "POST,PATCH,OPTIONS")) {
     return;
   }
 
+  setApiHeaders(req, res, "POST,PATCH,OPTIONS");
+
   try {
-    const authenticatedUserId = await getAuthenticatedUserIdFromHeader(
-      req.headers.authorization,
-    );
+    const authenticatedUser = await getAuthenticatedUser(req, res);
+    const authenticatedUserId = authenticatedUser?.id;
 
     if (!authenticatedUserId) {
       res.status(401).json({ error: "Unauthorized" });

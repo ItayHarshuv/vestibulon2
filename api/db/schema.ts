@@ -44,3 +44,28 @@ export const programs = createTable(
   }),
   (t) => [index("program_user_exercise_idx").on(t.userId, t.exerciseName)],
 );
+
+export const userProfiles = createTable(
+  "user_profile",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    workosUserId: d.varchar("workos_user_id", { length: 256 }).notNull().unique(),
+    username: d.varchar("username", { length: 256 }).notNull().unique(),
+    email: d.varchar("email", { length: 256 }).notNull().unique(),
+    gender: d.varchar("gender", { length: 16 }),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: d
+      .timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .$onUpdateFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    index("user_profile_workos_user_idx").on(t.workosUserId),
+    index("user_profile_username_idx").on(t.username),
+    index("user_profile_email_idx").on(t.email),
+  ],
+);

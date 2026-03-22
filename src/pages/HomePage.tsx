@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "~/auth/AuthProvider";
 import { HomeActionButton } from "../components/HomeActionButton";
+import { apiFetch } from "~/lib/api";
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { user, isLoaded } = useUser();
+  const { isLoading, refreshSession, user } = useAuth();
   const [showGenderModal, setShowGenderModal] = useState(false);
   const [selectedGender, setSelectedGender] = useState<"male" | "female" | null>(
     null,
@@ -14,38 +15,37 @@ export function HomePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const hasGenderInMetadata = useMemo(() => {
-    const unsafeGender = user?.unsafeMetadata?.gender;
-    const publicGender = user?.publicMetadata?.gender;
-    return (
-      unsafeGender === "male" ||
-      unsafeGender === "female" ||
-      publicGender === "male" ||
-      publicGender === "female"
-    );
-  }, [user?.publicMetadata?.gender, user?.unsafeMetadata?.gender]);
+    return user?.gender === "male" || user?.gender === "female";
+  }, [user?.gender]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (isLoading) return;
     if (!user) {
       setShowGenderModal(false);
       return;
     }
     setShowGenderModal(!hasGenderInMetadata);
-  }, [hasGenderInMetadata, isLoaded, user]);
+  }, [hasGenderInMetadata, isLoading, user]);
 
   async function handleConfirmGender() {
     if (!user || !selectedGender) return;
     try {
       setIsSavingGender(true);
       setSaveError(null);
-      await user.update({
-        unsafeMetadata: {
-          ...(user.unsafeMetadata as Record<string, unknown>),
+      const response = await apiFetch("/api/me", {
+        method: "PATCH",
+        body: JSON.stringify({
           gender: selectedGender,
-        },
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("שמירת לשון הפנייה נכשלה. נסה שוב.");
+      }
+
+      await refreshSession();
       setShowGenderModal(false);
-    } catch (error) {
+    } catch {
       setSaveError("שמירת לשון הפנייה נכשלה. נסה שוב.");
     } finally {
       setIsSavingGender(false);
