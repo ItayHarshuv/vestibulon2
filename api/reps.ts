@@ -3,31 +3,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAuthenticatedUserIdFromHeader } from "./auth.js";
 import { db } from "./db/index.js";
 import { reps } from "./db/schema.js";
-
-type CreateRepBody = {
-  exerciseName?: unknown;
-};
-
-type UpdateRepBody = {
-  repId?: unknown;
-  numberOfSeconds?: unknown;
-  bpmEndOfRep?: unknown;
-  flagPaused?: unknown;
-  dizziness?: unknown;
-  nausea?: unknown;
-  generalDifficulty?: unknown;
-  general_difficulty?: unknown;
-};
-
-function parseCreateBody(body: unknown): CreateRepBody {
-  if (!body || typeof body !== "object") return {};
-  return body as CreateRepBody;
-}
-
-function parseUpdateBody(body: unknown): UpdateRepBody {
-  if (!body || typeof body !== "object") return {};
-  return body as UpdateRepBody;
-}
+import {
+  createRepBodySchema,
+  getZodErrorMessage,
+  updateRepBodySchema,
+} from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -54,15 +34,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "POST") {
-      const body = parseCreateBody(req.body);
-      const exerciseName =
-        typeof body.exerciseName === "string" ? body.exerciseName.trim() : "";
-
-      if (!exerciseName) {
-        res.status(400).json({ error: "Missing exerciseName" });
+      const bodyResult = createRepBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
         return;
       }
 
+      const { exerciseName } = bodyResult.data;
       const now = new Date();
 
       const inserted = await db
@@ -88,38 +66,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PATCH") {
-      const body = parseUpdateBody(req.body);
-      const repId =
-        typeof body.repId === "number" && Number.isInteger(body.repId)
-          ? body.repId
-          : null;
-
-      if (repId === null) {
-        res.status(400).json({ error: "repId is required" });
+      const bodyResult = updateRepBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
         return;
       }
 
-      const hasNumberOfSeconds = body.numberOfSeconds !== undefined;
-      const hasBpmEndOfRep = body.bpmEndOfRep !== undefined;
-      const hasFlagPaused = body.flagPaused !== undefined;
-      const hasDizziness = body.dizziness !== undefined;
-      const hasNausea = body.nausea !== undefined;
-      const hasGeneralDifficulty =
-        body.generalDifficulty !== undefined || body.general_difficulty !== undefined;
-
-      if (
-        !hasNumberOfSeconds &&
-        !hasBpmEndOfRep &&
-        !hasFlagPaused &&
-        !hasDizziness &&
-        !hasNausea &&
-        !hasGeneralDifficulty
-      ) {
-        res.status(400).json({
-          error: "At least one updatable field is required",
-        });
-        return;
-      }
+      const {
+        bpmEndOfRep,
+        dizziness,
+        flagPaused,
+        generalDifficulty,
+        nausea,
+        numberOfSeconds,
+        repId,
+      } = bodyResult.data;
 
       const valuesToUpdate: {
         endTime?: Date;
@@ -130,19 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         generalDifficulty?: number;
       } = {};
 
-      if (hasNumberOfSeconds) {
-        const numberOfSeconds =
-          typeof body.numberOfSeconds === "number" &&
-          Number.isInteger(body.numberOfSeconds) &&
-          body.numberOfSeconds >= 0
-            ? body.numberOfSeconds
-            : null;
-
-        if (numberOfSeconds === null) {
-          res.status(400).json({ error: "numberOfSeconds must be a non-negative integer" });
-          return;
-        }
-
+      if (numberOfSeconds !== undefined) {
         const repRows = await db
           .select({
             startTime: reps.startTime,
@@ -162,83 +111,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       }
 
-      if (hasBpmEndOfRep) {
-        const bpmEndOfRep =
-          typeof body.bpmEndOfRep === "number" && Number.isInteger(body.bpmEndOfRep)
-            ? body.bpmEndOfRep
-            : null;
-
-        if (bpmEndOfRep === null) {
-          res.status(400).json({ error: "bpmEndOfRep must be an integer" });
-          return;
-        }
-
+      if (bpmEndOfRep !== undefined) {
         valuesToUpdate.bpmEndOfRep = bpmEndOfRep;
       }
 
-      if (hasFlagPaused) {
-        if (typeof body.flagPaused !== "boolean") {
-          res.status(400).json({ error: "flagPaused must be a boolean" });
-          return;
-        }
-
-        valuesToUpdate.flagPaused = body.flagPaused;
+      if (flagPaused !== undefined) {
+        valuesToUpdate.flagPaused = flagPaused;
       }
 
-      if (hasDizziness) {
-        const dizziness =
-          typeof body.dizziness === "number" &&
-          Number.isInteger(body.dizziness) &&
-          body.dizziness >= 0 &&
-          body.dizziness <= 10
-            ? body.dizziness
-            : null;
-
-        if (dizziness === null) {
-          res.status(400).json({ error: "dizziness must be an integer between 0 and 10" });
-          return;
-        }
-
+      if (dizziness !== undefined) {
         valuesToUpdate.dizziness = dizziness;
       }
 
-      if (hasNausea) {
-        const nausea =
-          typeof body.nausea === "number" &&
-          Number.isInteger(body.nausea) &&
-          body.nausea >= 0 &&
-          body.nausea <= 10
-            ? body.nausea
-            : null;
-
-        if (nausea === null) {
-          res.status(400).json({ error: "nausea must be an integer between 0 and 10" });
-          return;
-        }
-
+      if (nausea !== undefined) {
         valuesToUpdate.nausea = nausea;
       }
 
-      if (hasGeneralDifficulty) {
-        const generalDifficultyInput =
-          body.generalDifficulty !== undefined
-            ? body.generalDifficulty
-            : body.general_difficulty;
-        const generalDifficulty =
-          typeof generalDifficultyInput === "number" &&
-          Number.isInteger(generalDifficultyInput) &&
-          generalDifficultyInput >= 0 &&
-          generalDifficultyInput <= 10
-            ? generalDifficultyInput
-            : null;
-
-        if (generalDifficulty === null) {
-          res
-            .status(400)
-            .json({ error: "general_difficulty must be an integer between 0 and 10" });
-          return;
-        }
-
+      if (generalDifficulty !== undefined) {
         valuesToUpdate.generalDifficulty = generalDifficulty;
       }
 

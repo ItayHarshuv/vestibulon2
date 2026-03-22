@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useSignUp } from "@clerk/clerk-react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  clerkErrorSchema,
+  getZodErrorMessage,
+  signUpFormSchema,
+} from "~/lib/validation";
 
 export function SignUpPage() {
   const { signUp, setActive, isLoaded } = useSignUp();
@@ -14,22 +19,30 @@ export function SignUpPage() {
     e.preventDefault();
     if (!signUp || !isLoaded) return;
 
+    const formResult = signUpFormSchema.safeParse({ username, password });
+    if (!formResult.success) {
+      setError(getZodErrorMessage(formResult.error, "ההרשמה נכשלה"));
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
+      const { password: validPassword, username: validUsername } =
+        formResult.data;
       const result = await signUp.create({
-        username,
-        password,
+        username: validUsername,
+        password: validPassword,
       });
 
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
-        navigate("/");
+        void navigate("/");
       }
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { message: string }[] };
-      setError(clerkError.errors?.[0]?.message ?? "ההרשמה נכשלה");
+      const clerkErrorResult = clerkErrorSchema.safeParse(err);
+      setError(clerkErrorResult.data?.errors?.[0]?.message ?? "ההרשמה נכשלה");
     } finally {
       setLoading(false);
     }
@@ -48,10 +61,7 @@ export function SignUpPage() {
         </div>
       )}
 
-      <form
-        onSubmit={handleSignUp}
-        className="mt-8 w-full max-w-sm space-y-4"
-      >
+      <form onSubmit={handleSignUp} className="mt-8 w-full max-w-sm space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
             שם משתמש
@@ -60,7 +70,7 @@ export function SignUpPage() {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="בחר שם משתמש"
             required
           />
@@ -74,7 +84,7 @@ export function SignUpPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="••••••••"
             required
           />

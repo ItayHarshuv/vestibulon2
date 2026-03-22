@@ -3,6 +3,11 @@ import { useAuth } from "@clerk/clerk-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { WorkoutStopwatch } from "~/components/WorkoutStopwatch";
 import { getApiUrl } from "~/lib/api";
+import {
+  getZodErrorMessage,
+  workoutFinishRouteParamsSchema,
+  workoutLocationStateSchema,
+} from "~/lib/validation";
 
 interface SliderQuestionProps {
   label: string;
@@ -40,23 +45,39 @@ function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
 export function WorkoutFinishPage() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
-  const { programId, repId } = useParams<{ programId: string; repId: string }>();
+  const { programId, repId } = useParams<{
+    programId: string;
+    repId: string;
+  }>();
   const location = useLocation();
   const fallbackStartTimestampRef = useRef<number>(Date.now());
   const [dizziness, setDizziness] = useState<number | null>(null);
   const [nausea, setNausea] = useState<number | null>(null);
-  const [generalDifficulty, setGeneralDifficulty] = useState<number | null>(null);
+  const [generalDifficulty, setGeneralDifficulty] = useState<number | null>(
+    null,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const locationState = location.state as { workoutStartTimestampMs?: number } | null;
+  const locationStateResult = workoutLocationStateSchema.safeParse(
+    location.state,
+  );
+  const locationState = locationStateResult.success
+    ? locationStateResult.data
+    : null;
   const workoutStartTimestampMs =
-    typeof locationState?.workoutStartTimestampMs === "number"
-      ? locationState.workoutStartTimestampMs
-      : fallbackStartTimestampRef.current;
+    locationState?.workoutStartTimestampMs ?? fallbackStartTimestampRef.current;
 
-  const parsedProgramId = Number(programId);
-  const parsedRepId = Number(repId);
+  const routeParamsResult = useMemo(
+    () => workoutFinishRouteParamsSchema.safeParse({ programId, repId }),
+    [programId, repId],
+  );
+  const parsedProgramId = routeParamsResult.success
+    ? routeParamsResult.data.programId
+    : null;
+  const parsedRepId = routeParamsResult.success
+    ? routeParamsResult.data.repId
+    : null;
 
   const canContinue = useMemo(
     () =>
@@ -70,8 +91,14 @@ export function WorkoutFinishPage() {
   async function handleContinue() {
     if (!canContinue) return;
 
-    if (!Number.isInteger(parsedProgramId) || !Number.isInteger(parsedRepId)) {
-      setError("נתוני האימון אינם תקינים.");
+    if (parsedProgramId === null || parsedRepId === null) {
+      const errorMessage = routeParamsResult.success
+        ? "נתוני האימון אינם תקינים."
+        : getZodErrorMessage(
+            routeParamsResult.error,
+            "נתוני האימון אינם תקינים.",
+          );
+      setError(errorMessage);
       return;
     }
 

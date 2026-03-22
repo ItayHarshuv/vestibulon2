@@ -2,6 +2,11 @@ import { eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { db } from "./db/index.js";
 import { programs } from "./db/schema.js";
+import {
+  getZodErrorMessage,
+  programsQuerySchema,
+  updateProgramBodySchema,
+} from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Allow native apps (capacitor://localhost origin) to call this API.
@@ -20,40 +25,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === "PATCH") {
-      const body =
-        req.body && typeof req.body === "object"
-          ? (req.body as {
-              userId?: unknown;
-              programId?: unknown;
-              metronomeBpmTemp?: unknown;
-            })
-          : {};
-
-      const userId = typeof body.userId === "string" ? body.userId.trim() : "";
-      const programId =
-        typeof body.programId === "number" && Number.isInteger(body.programId)
-          ? body.programId
-          : null;
-      const metronomeBpmTemp =
-        typeof body.metronomeBpmTemp === "number" &&
-        Number.isInteger(body.metronomeBpmTemp)
-          ? body.metronomeBpmTemp
-          : null;
-
-      if (!userId) {
-        res.status(400).json({ error: "Missing userId" });
+      const bodyResult = updateProgramBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
         return;
       }
 
-      if (programId === null) {
-        res.status(400).json({ error: "programId must be an integer" });
-        return;
-      }
-
-      if (metronomeBpmTemp === null) {
-        res.status(400).json({ error: "metronomeBpmTemp must be an integer" });
-        return;
-      }
+      const { userId, programId, metronomeBpmTemp } = bodyResult.data;
 
       const updated = await db
         .update(programs)
@@ -66,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
       const updatedRow = updated[0];
-      if (!updatedRow || updatedRow.userId !== userId) {
+      if (updatedRow?.userId !== userId) {
         res.status(404).json({ error: "Program not found" });
         return;
       }
@@ -83,11 +61,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const userId = typeof req.query?.userId === "string" ? req.query.userId : "";
-    if (!userId) {
-      res.status(400).json({ error: "Missing userId query param" });
+    const queryResult = programsQuerySchema.safeParse(req.query);
+    if (!queryResult.success) {
+      res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
       return;
     }
+
+    const { userId } = queryResult.data;
 
     const userPrograms = await db
       .select({
