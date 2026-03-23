@@ -14,7 +14,58 @@ import {
   signUpRequestSchema,
 } from "../../src/lib/validation.js";
 
+function getWorkOSErrorCode(error: unknown) {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+
+  return null;
+}
+
+function getWorkOSNestedErrorCode(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "errors" in error &&
+    Array.isArray(error.errors)
+  ) {
+    const firstError = error.errors[0];
+    if (
+      firstError &&
+      typeof firstError === "object" &&
+      "code" in firstError &&
+      typeof firstError.code === "string"
+    ) {
+      return firstError.code;
+    }
+  }
+
+  return null;
+}
+
 function getWorkOSErrorMessage(error: unknown, fallback: string) {
+  const nestedErrorCode = getWorkOSNestedErrorCode(error);
+  if (nestedErrorCode === "email_not_available") {
+    return "כתובת האימייל כבר קיימת במערכת";
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "errors" in error &&
+    Array.isArray(error.errors)
+  ) {
+    const firstError = error.errors[0];
+    if (
+      firstError &&
+      typeof firstError === "object" &&
+      "message" in firstError &&
+      typeof firstError.message === "string"
+    ) {
+      return firstError.message;
+    }
+  }
+
   if (
     error &&
     typeof error === "object" &&
@@ -34,6 +85,11 @@ function getWorkOSErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+async function findWorkOSUserByEmail(email: string) {
+  const users = await getWorkOS().userManagement.listUsers({ email });
+  return users.data.find((user) => user.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -77,10 +133,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const workos = getWorkOS();
-    const createdUser = await workos.userManagement.createUser({
-      email,
-      password,
-    });
+    let createdUser;
+
+    try {
+      createdUser = await workos.userManagement.createUser({
+        email,
+        password,
+      });
+    } catch (error) {
+      const isRecoverableExistingEmail =
+        getWorkOSErrorCode(error) === "user_creation_error" &&
+        getWorkOSNestedErrorCode(error) === "email_not_available";
+
+      if (!isRecoverableExistingEmail) {
+        throw error;
+      }
+
+      const existingWorkOSUser = await findWorkOSUserByEmail(email);
+      if (!existingWorkOSUser) {
+        throw error;
+      }
+
+      createdUser = existingWorkOSUser;
+    }
 
     try {
       await db.insert(userProfiles).values({
