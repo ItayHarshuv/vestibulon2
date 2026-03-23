@@ -6,11 +6,39 @@ import { index, pgTableCreator } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `vestibulon2_${name}`);
 
+export const userProfiles = createTable(
+  "user_profile",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    workosUserId: d.varchar("workos_user_id", { length: 256 }).notNull().unique(),
+    username: d.varchar("username", { length: 256 }).notNull().unique(),
+    email: d.varchar("email", { length: 256 }).notNull().unique(),
+    gender: d.varchar("gender", { length: 16 }),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: d
+      .timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .$onUpdateFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    index("user_profile_workos_user_idx").on(t.workosUserId),
+    index("user_profile_username_idx").on(t.username),
+    index("user_profile_email_idx").on(t.email),
+  ],
+);
+
 export const programs = createTable(
   "program",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d.varchar("user_id", { length: 256 }).notNull(),
+    userId: d
+      .varchar("user_id", { length: 256 })
+      .notNull()
+      .references(() => userProfiles.workosUserId),
     exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
@@ -52,7 +80,11 @@ export const reps = createTable(
   ],
 );
 
-export const programsRelations = relations(programs, ({ many }) => ({
+export const programsRelations = relations(programs, ({ many, one }) => ({
+  user: one(userProfiles, {
+    fields: [programs.userId],
+    references: [userProfiles.workosUserId],
+  }),
   reps: many(reps),
 }));
 
@@ -63,27 +95,6 @@ export const repsRelations = relations(reps, ({ one }) => ({
   }),
 }));
 
-export const userProfiles = createTable(
-  "user_profile",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    workosUserId: d.varchar("workos_user_id", { length: 256 }).notNull().unique(),
-    username: d.varchar("username", { length: 256 }).notNull().unique(),
-    email: d.varchar("email", { length: 256 }).notNull().unique(),
-    gender: d.varchar("gender", { length: 16 }),
-    createdAt: d
-      .timestamp("created_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    updatedAt: d
-      .timestamp("updated_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .$onUpdateFn(() => new Date())
-      .notNull(),
-  }),
-  (t) => [
-    index("user_profile_workos_user_idx").on(t.workosUserId),
-    index("user_profile_username_idx").on(t.username),
-    index("user_profile_email_idx").on(t.email),
-  ],
-);
+export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
+  programs: many(programs),
+}));
