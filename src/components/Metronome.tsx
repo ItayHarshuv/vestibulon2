@@ -43,9 +43,7 @@ export function Metronome({ bpm, isRunning, onBpmChange }: MetronomeProps) {
       return;
     }
 
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
-    }
+    audioContextRef.current ??= new AudioContext();
 
     const context = audioContextRef.current;
     void context.resume();

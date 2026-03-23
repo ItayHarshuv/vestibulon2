@@ -4,17 +4,17 @@
 
 - [x] Deploy
 - [x] Setup database
-- [x] Add login authentication (w/ clerk)
+- [x] Add login authentication (w/ WorkOS)
 - [X] Make UI homepage
 - [X] Build on ios and android (w/ capacitor)
 - [-] Build the entire DB schemas
 - [ ] Add practice page
-- [ ] Set user premmistions to write and read DB (w/clerk)
+- [ ] Set user premmistions to write and read DB (w/ WorkOS)
 - [ ] Schedule page
 - [ ] Push notification
 - [ ] Add admin account set exercises page
 - [ ] Add admin data page
-- [ ] About and term agreements (maybe with clerk)
+- [ ] About and term agreements (maybe with WorkOS)
 - [ ] Chat
 - [ ] Configure styling
 
@@ -22,5 +22,4 @@
 
 - [ ] Error management (w/ Sentry)
 - [ ] Analytics (posthog)
-
 

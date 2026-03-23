@@ -29,7 +29,9 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Uint8Array[] = [];
 
   for await (const chunk of req) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    chunks.push(
+      typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Uint8Array),
+    );
   }
 
   const rawBody = Buffer.concat(chunks).toString("utf8").trim();

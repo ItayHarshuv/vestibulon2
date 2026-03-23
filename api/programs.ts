@@ -1,5 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
 import { db } from "./db/index.js";
 import { programs } from "./db/schema.js";
 import {
@@ -9,21 +10,19 @@ import {
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Allow native apps (capacitor://localhost origin) to call this API.
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,PATCH,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With",
-  );
-
-  if (req.method === "OPTIONS") {
-    res.statusCode = 204;
-    res.end();
+  if (handleOptions(req, res, "GET,PATCH,OPTIONS")) {
     return;
   }
 
+  setApiHeaders(req, res, "GET,PATCH,OPTIONS");
+
   try {
+    const authenticatedUser = await getAuthenticatedUser(req, res);
+    if (!authenticatedUser) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
     if (req.method === "PATCH") {
       const bodyResult = updateProgramBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
@@ -31,20 +30,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const { userId, programId, metronomeBpmTemp } = bodyResult.data;
+      const { programId, metronomeBpmTemp } = bodyResult.data;
 
       const updated = await db
         .update(programs)
         .set({ metronomeBpmTemp })
-        .where(eq(programs.id, programId))
+        .where(
+          and(
+            eq(programs.id, programId),
+            eq(programs.userId, authenticatedUser.id),
+          ),
+        )
         .returning({
           id: programs.id,
           metronomeBpmTemp: programs.metronomeBpmTemp,
-          userId: programs.userId,
         });
 
       const updatedRow = updated[0];
-      if (updatedRow?.userId !== userId) {
+      if (!updatedRow) {
         res.status(404).json({ error: "Program not found" });
         return;
       }
@@ -67,8 +70,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const { userId } = queryResult.data;
-
     const userPrograms = await db
       .select({
         id: programs.id,
@@ -82,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recomendedVAS: programs.recomendedVAS,
       })
       .from(programs)
-      .where(eq(programs.userId, userId))
+      .where(eq(programs.userId, authenticatedUser.id))
       .orderBy(programs.createdAt);
 
     res.status(200).json(userPrograms);

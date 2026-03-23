@@ -1,29 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { useUser } from "@clerk/clerk-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "~/auth/AuthProvider";
 import {
   applyGenderToText,
   getExerciseTemplateByName,
   type Gender,
 } from "~/data/content";
-import { getApiUrl } from "~/lib/api";
+import { apiFetch } from "~/lib/api";
 import {
   type ApiProgram,
-  genderSchema,
   getZodErrorMessage,
   programRouteParamsSchema,
   programsResponseSchema,
 } from "~/lib/validation";
 
 export function ExerciseDescriptionPage() {
-  const { user, isLoaded } = useUser();
+  const { isLoading, user } = useAuth();
   const { programId } = useParams<{ programId: string }>();
   const navigate = useNavigate();
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = user?.id;
   const routeParamsResult = useMemo(
     () => programRouteParamsSchema.safeParse({ programId }),
     [programId],
@@ -33,25 +31,19 @@ export function ExerciseDescriptionPage() {
     : null;
 
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!userId || parsedProgramId === null) {
+    if (isLoading) return;
+    if (!user || parsedProgramId === null) {
       setLoading(false);
       setProgram(null);
       return;
     }
-
-    const currentUserId = userId;
 
     async function fetchProgram() {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(
-          getApiUrl(
-            `/api/programs?userId=${encodeURIComponent(currentUserId)}`,
-          ),
-        );
+        const response = await apiFetch("/api/programs");
 
         if (!response.ok) {
           throw new Error("Failed to fetch programs");
@@ -77,7 +69,7 @@ export function ExerciseDescriptionPage() {
     }
 
     void fetchProgram();
-  }, [isLoaded, parsedProgramId, userId]);
+  }, [isLoading, parsedProgramId, user]);
 
   const exerciseTemplate = useMemo(() => {
     if (!program) return null;
@@ -85,18 +77,8 @@ export function ExerciseDescriptionPage() {
   }, [program]);
 
   const gender = useMemo<Gender>(() => {
-    const unsafeMetaGender = genderSchema.safeParse(
-      user?.unsafeMetadata?.gender,
-    );
-    if (unsafeMetaGender.success) return unsafeMetaGender.data;
-
-    const publicMetaGender = genderSchema.safeParse(
-      user?.publicMetadata?.gender,
-    );
-    if (publicMetaGender.success) return publicMetaGender.data;
-
-    return "male";
-  }, [user?.publicMetadata?.gender, user?.unsafeMetadata?.gender]);
+    return user?.gender ?? "male";
+  }, [user?.gender]);
 
   const renderedExerciseDescription = useMemo(() => {
     if (!exerciseTemplate) return "";

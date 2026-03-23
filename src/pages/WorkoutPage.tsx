@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAuth, useUser } from "@clerk/clerk-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "~/auth/AuthProvider";
 import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
-import { getApiUrl } from "~/lib/api";
+import { apiFetch } from "~/lib/api";
 import {
   type ApiProgram,
   createRepResponseSchema,
@@ -13,8 +13,7 @@ import {
 } from "~/lib/validation";
 
 export function WorkoutPage() {
-  const { user, isLoaded } = useUser();
-  const { getToken } = useAuth();
+  const { isLoading, user } = useAuth();
   const navigate = useNavigate();
   const { programId } = useParams<{ programId: string }>();
   const [program, setProgram] = useState<ApiProgram | null>(null);
@@ -33,7 +32,6 @@ export function WorkoutPage() {
   const hasNavigatedToFinishRef = useRef(false);
   const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
 
-  const userId = user?.id;
   const routeParamsResult = useMemo(
     () => programRouteParamsSchema.safeParse({ programId }),
     [programId],
@@ -43,25 +41,19 @@ export function WorkoutPage() {
     : null;
 
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!userId || parsedProgramId === null) {
+    if (isLoading) return;
+    if (!user || parsedProgramId === null) {
       setProgram(null);
       setLoading(false);
       return;
     }
-
-    const currentUserId = userId;
 
     async function fetchProgram() {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(
-          getApiUrl(
-            `/api/programs?userId=${encodeURIComponent(currentUserId)}`,
-          ),
-        );
+        const response = await apiFetch("/api/programs");
 
         if (!response.ok) {
           throw new Error("Failed to fetch programs");
@@ -87,7 +79,7 @@ export function WorkoutPage() {
     }
 
     void fetchProgram();
-  }, [isLoaded, parsedProgramId, userId]);
+  }, [isLoading, parsedProgramId, user]);
 
   useEffect(() => {
     if (!program) return;
@@ -119,24 +111,15 @@ export function WorkoutPage() {
   }, [isPaused, program, remainingSeconds]);
 
   useEffect(() => {
-    if (!program || !isLoaded || !userId || hasCreatedRepRef.current) return;
+    if (!program || isLoading || !user || hasCreatedRepRef.current) return;
 
     hasCreatedRepRef.current = true;
     const currentExerciseName = program.exerciseName;
 
     void (async () => {
       try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
-
-        const response = await fetch(getApiUrl("/api/reps"), {
+        const response = await apiFetch("/api/reps", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({
             exerciseName: currentExerciseName,
           }),
@@ -167,7 +150,7 @@ export function WorkoutPage() {
         console.error("Error creating rep record:", err);
       }
     })();
-  }, [getToken, isLoaded, program, userId]);
+  }, [isLoading, program, user]);
 
   useEffect(() => {
     if (
@@ -188,17 +171,8 @@ export function WorkoutPage() {
 
     void (async () => {
       try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
-
-        const response = await fetch(getApiUrl("/api/reps"), {
+        const response = await apiFetch("/api/reps", {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({
             repId: activeRepId,
             numberOfSeconds: durationSeconds,
@@ -226,7 +200,6 @@ export function WorkoutPage() {
   }, [
     activeRepId,
     currentBpm,
-    getToken,
     navigate,
     program,
     remainingSeconds,
@@ -242,7 +215,7 @@ export function WorkoutPage() {
     (nextBpm: number) => {
       setCurrentBpm(nextBpm);
 
-      if (!program || !userId) return;
+      if (!program || !user) return;
 
       setProgram((previousProgram) => {
         if (!previousProgram) return previousProgram;
@@ -254,13 +227,9 @@ export function WorkoutPage() {
 
       void (async () => {
         try {
-          const response = await fetch(getApiUrl("/api/programs"), {
+          const response = await apiFetch("/api/programs", {
             method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({
-              userId,
               programId: program.id,
               metronomeBpmTemp: nextBpm,
             }),
@@ -274,7 +243,7 @@ export function WorkoutPage() {
         }
       })();
     },
-    [program, userId],
+    [program, user],
   );
 
   if (loading) {
