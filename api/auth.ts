@@ -10,6 +10,7 @@ import type { Gender } from "../src/data/content.js";
 
 const DEFAULT_SESSION_COOKIE_NAME = "vestibulon_session";
 const ACCESS_CONTROL_HEADERS = "Content-Type, Authorization, X-Requested-With";
+const DEFAULT_ALLOWED_CROSS_ORIGINS = ["capacitor://localhost"];
 
 function getRequiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -104,6 +105,72 @@ export function clearSessionCookie(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Set-Cookie", buildCookie(req, "", 0));
 }
 
+function getRequestOrigin(req: VercelRequest) {
+  const host = req.headers.host?.trim();
+  if (!host) return null;
+
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol =
+    typeof forwardedProto === "string"
+      ? forwardedProto.split(",")[0]?.trim()
+      : undefined;
+
+  return `${protocol === "https" ? "https" : "http"}://${host}`;
+}
+
+function normalizeOrigin(origin: string) {
+  try {
+    const url = new URL(origin);
+    if (!url.host || url.username || url.password) {
+      return null;
+    }
+
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedCrossOrigins() {
+  const configuredOrigins =
+    process.env.APP_ALLOWED_ORIGINS
+      ?.split(",")
+      .map((origin) => normalizeOrigin(origin.trim()))
+      .filter((origin): origin is string => Boolean(origin)) ?? [];
+
+  return new Set([...DEFAULT_ALLOWED_CROSS_ORIGINS, ...configuredOrigins]);
+}
+
+function isAllowedOrigin(req: VercelRequest, origin: string) {
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (!normalizedOrigin) return false;
+
+  if (normalizedOrigin === getRequestOrigin(req)) {
+    return true;
+  }
+
+  return getAllowedCrossOrigins().has(normalizedOrigin);
+}
+
+function appendVaryHeader(res: VercelResponse, value: string) {
+  const current = res.getHeader("Vary");
+  if (typeof current !== "string" || current.length === 0) {
+    res.setHeader("Vary", value);
+    return;
+  }
+
+  const values = current
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (!values.includes(value)) {
+    values.push(value);
+  }
+
+  res.setHeader("Vary", values.join(", "));
+}
+
 export function setApiHeaders(
   req: VercelRequest,
   res: VercelResponse,
@@ -111,9 +178,12 @@ export function setApiHeaders(
 ) {
   const origin = req.headers.origin;
   if (origin) {
+    appendVaryHeader(res, "Origin");
+  }
+
+  if (origin && isAllowedOrigin(req, origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Vary", "Origin");
   }
 
   res.setHeader("Access-Control-Allow-Methods", methods);
