@@ -1,0 +1,1 @@
+ALTER TABLE "vestibulon2_user_profile" ADD COLUMN "number_of_sessions" integer DEFAULT 1 NOT NULL;

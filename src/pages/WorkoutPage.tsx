@@ -121,6 +121,7 @@ export function WorkoutPage() {
           method: "POST",
           body: JSON.stringify({
             programId: program.id,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
         });
 

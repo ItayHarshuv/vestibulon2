@@ -1,6 +1,6 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { programs, todayReps } from "./db/schema.js";
+import { programs, todayReps, userProfiles } from "./db/schema.js";
 
 function getTimeZoneParts(date: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -46,6 +46,11 @@ function getDateKeyInTimeZone(date: Date, timeZone: string) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function getPracticeTimeKeyInTimeZone(date: Date, timeZone: string) {
+  const { year, month, day, hour, minute } = getTimeZoneParts(date, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}-${String(hour).padStart(2, "0")}-${String(minute).padStart(2, "0")}`;
+}
+
 // Convert a wall-clock time in the given timezone into a UTC Date for storage.
 function createDateInTimeZone(
   year: number,
@@ -74,8 +79,8 @@ function roundToQuarterHour(totalMinutes: number) {
   return Math.round(totalMinutes / 15) * 15;
 }
 
-function buildPracticeTimes(totalRows: number, timeZone: string) {
-  if (totalRows === 0) {
+function buildPracticeTimes(totalSessions: number, timeZone: string) {
+  if (totalSessions === 0) {
     return [];
   }
 
@@ -83,19 +88,19 @@ function buildPracticeTimes(totalRows: number, timeZone: string) {
   const startMinutes = 8 * 60;
   const endMinutes = 20 * 60;
 
-  if (totalRows === 1) {
+  if (totalSessions === 1) {
     return [createDateInTimeZone(year, month, day, 8, 0, timeZone)];
   }
 
-  return Array.from({ length: totalRows }, (_, index) => {
+  return Array.from({ length: totalSessions }, (_, index) => {
     const totalSpanMinutes = endMinutes - startMinutes;
     const plannedMinutes =
       index === 0
         ? startMinutes
-        : index === totalRows - 1
+        : index === totalSessions - 1
           ? endMinutes
           : roundToQuarterHour(
-              startMinutes + (totalSpanMinutes * index) / (totalRows - 1),
+              startMinutes + (totalSpanMinutes * index) / (totalSessions - 1),
             );
 
     return createDateInTimeZone(
@@ -114,27 +119,26 @@ export async function ensureTodayRepsForUser(
   timeZone: string,
 ) {
   getTimeZoneParts(new Date(), timeZone);
+  const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
 
   const existingRows = await db
     .select({
+      exerciseName: todayReps.exerciseName,
       practiceTime: todayReps.practiceTime,
     })
     .from(todayReps)
     .where(eq(todayReps.userId, userId))
-    .orderBy(asc(todayReps.practiceTime), asc(todayReps.id))
+    .orderBy(asc(todayReps.practiceTime), asc(todayReps.id));
+
+  const userProfileRows = await db
+    .select({
+      numberOfSessions: userProfiles.numberOfSessions,
+    })
+    .from(userProfiles)
+    .where(eq(userProfiles.workosUserId, userId))
     .limit(1);
 
-  const existingPracticeTime = existingRows[0]?.practiceTime ?? null;
-  const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
-  const existingKey = existingPracticeTime
-    ? getDateKeyInTimeZone(existingPracticeTime, timeZone)
-    : null;
-
-  if (existingKey === todayKey) {
-    return { recreated: false, rowsCreated: 0 };
-  }
-
-  await db.delete(todayReps).where(eq(todayReps.userId, userId));
+  const numberOfSessions = Math.max(userProfileRows[0]?.numberOfSessions ?? 1, 1);
 
   const activePrograms = await db
     .select({
@@ -145,48 +149,108 @@ export async function ensureTodayRepsForUser(
     .where(and(eq(programs.userId, userId), eq(programs.active, true)))
     .orderBy(programs.createdAt, programs.id);
 
-  const scheduledExerciseNames = activePrograms.flatMap((program) =>
-    Array.from({ length: program.numberOfRepetions }, () => program.exerciseName),
+  const sessionPracticeTimes = buildPracticeTimes(numberOfSessions, timeZone);
+  const scheduledRows = activePrograms.flatMap((program) =>
+    sessionPracticeTimes.flatMap((practiceTime) =>
+      Array.from({ length: program.numberOfRepetions }, () => ({
+        exerciseName: program.exerciseName,
+        practiceTime,
+      })),
+    ),
   );
 
-  if (scheduledExerciseNames.length === 0) {
+  const existingTodayRows = existingRows.filter(
+    (row) => getDateKeyInTimeZone(row.practiceTime, timeZone) === todayKey,
+  );
+  const matchesExpectedSchedule =
+    existingRows.length === existingTodayRows.length &&
+    existingTodayRows.length === scheduledRows.length &&
+    existingTodayRows.every((row, index) => {
+      const expectedRow = scheduledRows[index];
+      return (
+        expectedRow !== undefined &&
+        row.exerciseName === expectedRow.exerciseName &&
+        row.practiceTime.getTime() === expectedRow.practiceTime.getTime()
+      );
+    });
+
+  if (matchesExpectedSchedule) {
+    return { recreated: false, rowsCreated: 0 };
+  }
+
+  await db.delete(todayReps).where(eq(todayReps.userId, userId));
+
+  if (scheduledRows.length === 0) {
     return { recreated: true, rowsCreated: 0 };
   }
 
-  const practiceTimes = buildPracticeTimes(scheduledExerciseNames.length, timeZone);
-
   await db.insert(todayReps).values(
-    scheduledExerciseNames.map((exerciseName, index) => ({
+    scheduledRows.map((row) => ({
       userId,
-      exerciseName,
-      practiceTime: practiceTimes[index]!,
+      exerciseName: row.exerciseName,
+      practiceTime: row.practiceTime,
     })),
   );
 
-  return { recreated: true, rowsCreated: scheduledExerciseNames.length };
+  return { recreated: true, rowsCreated: scheduledRows.length };
+}
+
+export async function getTodayRepRowsForUser(
+  userId: string,
+  timeZone: string,
+  exerciseName?: string,
+) {
+  const rows = await db
+    .select({
+      id: todayReps.id,
+      practiceTime: todayReps.practiceTime,
+      exerciseName: todayReps.exerciseName,
+      repId: todayReps.repId,
+    })
+    .from(todayReps)
+    .where(eq(todayReps.userId, userId))
+    .orderBy(asc(todayReps.practiceTime), asc(todayReps.id));
+
+  const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
+
+  return rows.filter((row) => {
+    if (getDateKeyInTimeZone(row.practiceTime, timeZone) !== todayKey) {
+      return false;
+    }
+
+    if (exerciseName && row.exerciseName !== exerciseName) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 export async function assignRepToTodayRepSlot(
   userId: string,
   exerciseName: string,
   repId: number,
+  timeZone: string,
 ) {
-  const availableRows = await db
-    .select({
-      id: todayReps.id,
-    })
-    .from(todayReps)
-    .where(
-      and(
-        eq(todayReps.userId, userId),
-        eq(todayReps.exerciseName, exerciseName),
-        isNull(todayReps.repId),
-      ),
-    )
-    .orderBy(asc(todayReps.practiceTime), asc(todayReps.id))
-    .limit(1);
+  const now = new Date();
+  const scheduledRows = await getTodayRepRowsForUser(userId, timeZone, exerciseName);
+  const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceTime <= now);
+  const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
+  const latestDuePracticeTimeKey = latestScheduledRow
+    ? getPracticeTimeKeyInTimeZone(latestScheduledRow.practiceTime, timeZone)
+    : null;
+  const row =
+    (latestDuePracticeTimeKey
+      ? scheduledRows.find(
+          (candidateRow) =>
+            getPracticeTimeKeyInTimeZone(candidateRow.practiceTime, timeZone) ===
+              latestDuePracticeTimeKey && candidateRow.repId === null,
+        ) ?? null
+      : null) ??
+    scheduledRows.find(
+      (candidateRow) => candidateRow.practiceTime > now && candidateRow.repId === null,
+    );
 
-  const row = availableRows[0];
   if (!row) {
     return false;
   }

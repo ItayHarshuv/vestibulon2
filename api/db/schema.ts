@@ -14,6 +14,7 @@ export const userProfiles = createTable(
     username: d.varchar("username", { length: 256 }).notNull().unique(),
     email: d.varchar("email", { length: 256 }).notNull().unique(),
     gender: d.varchar("gender", { length: 16 }),
+    numberOfSessions: d.integer("number_of_sessions").notNull().default(1),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
       .$defaultFn(() => new Date())

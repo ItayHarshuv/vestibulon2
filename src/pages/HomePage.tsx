@@ -3,6 +3,26 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { HomeActionButton } from "../components/HomeActionButton";
 import { apiFetch } from "~/lib/api";
+import { getZodErrorMessage, todayRepsResponseSchema } from "~/lib/validation";
+
+type TodayRepRow = {
+  id: number;
+  practiceTime: string;
+  exerciseName: string;
+  repId: number | null;
+};
+
+function formatPracticeTime(date: Date) {
+  return new Intl.DateTimeFormat("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+function getPracticeTimeKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
+}
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -13,6 +33,10 @@ export function HomePage() {
   );
   const [isSavingGender, setIsSavingGender] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [todayReps, setTodayReps] = useState<TodayRepRow[]>([]);
+  const [isLoadingTodayReps, setIsLoadingTodayReps] = useState(false);
+  const [todayRepsError, setTodayRepsError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const hasGenderInMetadata = useMemo(() => {
     return user?.gender === "male" || user?.gender === "female";
@@ -26,6 +50,112 @@ export function HomePage() {
     }
     setShowGenderModal(!hasGenderInMetadata);
   }, [hasGenderInMetadata, isLoading, user]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (!user) {
+      setTodayReps([]);
+      setTodayRepsError(null);
+      return;
+    }
+
+    void (async () => {
+      try {
+        setIsLoadingTodayReps(true);
+        setTodayRepsError(null);
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const response = await apiFetch(
+          `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch today's reps");
+        }
+
+        const dataResult = todayRepsResponseSchema.safeParse(await response.json());
+        if (!dataResult.success) {
+          throw new Error(
+            getZodErrorMessage(dataResult.error, "Invalid today's reps response"),
+          );
+        }
+
+        setTodayReps(dataResult.data);
+      } catch (error) {
+        console.error("Error fetching today's reps:", error);
+        setTodayReps([]);
+        setTodayRepsError("לא ניתן לטעון את תרגולי היום");
+      } finally {
+        setIsLoadingTodayReps(false);
+      }
+    })();
+  }, [isLoading, user]);
+
+  const practiceStatus = useMemo(() => {
+    if (isLoadingTodayReps) {
+      return {
+        kind: "loading" as const,
+        timeLabel: null,
+      };
+    }
+
+    if (todayRepsError) {
+      return {
+        kind: "error" as const,
+        timeLabel: null,
+      };
+    }
+
+    const now = new Date(nowMs);
+    const scheduledRows = todayReps.map((row) => ({
+      ...row,
+      practiceDate: new Date(row.practiceTime),
+    }));
+    const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceDate <= now);
+    const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
+    const latestDuePracticeTimeKey = latestScheduledRow
+      ? getPracticeTimeKey(latestScheduledRow.practiceDate)
+      : null;
+
+    if (latestDuePracticeTimeKey) {
+      const latestDuePracticeTimePendingRow = scheduledRows.find(
+        (row) =>
+          getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey &&
+          row.repId === null,
+      );
+
+      if (latestDuePracticeTimePendingRow) {
+        return {
+          kind: "due" as const,
+          timeLabel: formatPracticeTime(latestDuePracticeTimePendingRow.practiceDate),
+        };
+      }
+    }
+
+    const nextPendingRow = scheduledRows.find((row) => row.practiceDate > now && row.repId === null);
+
+    if (!nextPendingRow) {
+      return {
+        kind: "complete" as const,
+        timeLabel: null,
+      };
+    }
+
+    return {
+      kind: "upcoming" as const,
+      timeLabel: formatPracticeTime(nextPendingRow.practiceDate),
+    };
+  }, [isLoadingTodayReps, nowMs, todayReps, todayRepsError]);
 
   async function handleConfirmGender() {
     if (!user || !selectedGender) return;
@@ -58,14 +188,24 @@ export function HomePage() {
       className="flex min-h-screen flex-col items-center bg-white px-6 pt-10"
     >
 
-      {/* Top status text */}
-      <p className="text-lg font-semibold text-gray-800">
-        14:15
-      </p>
 
       {/* Call to action */}
-      <p className="mt-4 text-xl font-bold text-gray-900">
-        <span className="underline">הגיע</span> הזמן לתרגל!
+      <p className="mt-4 text-xl font-bold text-gray-900 text-center">
+        {practiceStatus.kind === "due" ? (
+          <>
+            הגיע הזמן לתרגל!<br /> יש להשלים את התרגול של
+            {" "}
+            השעה {practiceStatus.timeLabel}
+          </>
+        ) : practiceStatus.kind === "upcoming" ? (
+          <>תזכורת לתרגיל הבא בשעה {practiceStatus.timeLabel}</>
+        ) : practiceStatus.kind === "loading" ? (
+          <>טוען תרגולים...</>
+        ) : practiceStatus.kind === "error" ? (
+          <>{todayRepsError}</>
+        ) : (
+          <>לא נותרו תרגולים להיום</>
+        )}
       </p>
 
       {/* Button cards */}

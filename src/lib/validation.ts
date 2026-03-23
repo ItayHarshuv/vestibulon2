@@ -112,6 +112,16 @@ export const workoutLocationStateSchema = z.object({
 
 export const programsQuerySchema = z.preprocess(coerceObject, z.object({}));
 
+export const todayRepsQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    timeZone: z.preprocess(
+      (value) => (Array.isArray(value) ? value[0] : value),
+      requiredTrimmedString("timeZone is required"),
+    ),
+  }),
+);
+
 export const updateProgramBodySchema = z.preprocess(
   coerceObject,
   z.object({
@@ -138,6 +148,7 @@ export const createRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
     programId: integerField("programId is required"),
+    timeZone: requiredTrimmedString("timeZone is required"),
   }),
 );
 
@@ -197,6 +208,15 @@ export const createRepResponseSchema = z.object({
   id: z.number().int(),
   startTime: z.string(),
 });
+
+export const todayRepRowSchema = z.object({
+  id: z.number().int(),
+  practiceTime: z.string(),
+  exerciseName: z.string(),
+  repId: z.number().int().nullable(),
+});
+
+export const todayRepsResponseSchema = z.array(todayRepRowSchema);
 
 export type ApiProgram = z.infer<typeof apiProgramSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;
