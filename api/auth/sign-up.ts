@@ -134,12 +134,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const workos = getWorkOS();
     let createdUser;
+    let didCreateWorkOSUser = false;
 
     try {
       createdUser = await workos.userManagement.createUser({
         email,
         password,
       });
+      didCreateWorkOSUser = true;
     } catch (error) {
       const isRecoverableExistingEmail =
         getWorkOSErrorCode(error) === "user_creation_error" &&
@@ -164,9 +166,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: createdUser.email,
       });
     } catch (error) {
-      await workos.userManagement.deleteUser(createdUser.id).catch((deleteError) => {
-        console.error("Error rolling back WorkOS user creation:", deleteError);
-      });
+      if (didCreateWorkOSUser) {
+        await workos.userManagement.deleteUser(createdUser.id).catch((deleteError) => {
+          console.error("Error rolling back WorkOS user creation:", deleteError);
+        });
+      }
       throw error;
     }
 
