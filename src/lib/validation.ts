@@ -141,6 +141,13 @@ export const createRepBodySchema = z.preprocess(
   }),
 );
 
+export const syncTodayRepsBodySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    timeZone: requiredTrimmedString("timeZone is required"),
+  }),
+);
+
 const updateRepBodyBaseSchema = z
   .object({
     repId: integerField("repId is required"),

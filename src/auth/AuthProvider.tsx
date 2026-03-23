@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const hasInitializedRef = useRef(false);
+  const syncedTodayRepsUserIdRef = useRef<string | null>(null);
 
   async function refreshSession() {
     const response = await apiFetch("/api/auth/session");
@@ -68,6 +69,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      syncedTodayRepsUserIdRef.current = null;
+      return;
+    }
+
+    if (syncedTodayRepsUserIdRef.current === user.id) {
+      return;
+    }
+
+    syncedTodayRepsUserIdRef.current = user.id;
+
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/today-reps", {
+          method: "POST",
+          body: JSON.stringify({
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to sync today's reps");
+        }
+      } catch (error) {
+        console.error("Error syncing today's reps:", error);
+      }
+    })();
+  }, [user]);
 
   return (
     <AuthContext.Provider

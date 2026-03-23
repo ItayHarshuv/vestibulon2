@@ -48,6 +48,7 @@ export const programs = createTable(
     numberOfRepetions: d.integer("number_of_repetions").notNull(),
     metronomeBpm: d.integer("metronome_bpm").notNull(),
     metronomeBpmTemp: d.integer("metronome_bpm_temp"),
+    active: d.boolean("active").notNull().default(true),
     position: d.varchar("position", { length: 256 }).notNull(),
     background: d.varchar("background", { length: 256 }).notNull(),
     recomendedVAS: d.integer("recomended_vas").notNull(),
@@ -77,6 +78,30 @@ export const reps = createTable(
   (t) => [
     index("rep_program_idx").on(t.programId),
     index("rep_user_exercise_idx").on(t.userId, t.exerciseName),
+  ],
+);
+
+export const todayReps = createTable(
+  "today_reps",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: d
+      .varchar("user_id", { length: 256 })
+      .notNull()
+      .references(() => userProfiles.workosUserId, {
+        onDelete: "cascade",
+      }),
+    practiceTime: d
+      .timestamp("practice_time", { withTimezone: true })
+      .notNull(),
+    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    repId: d.integer("rep_id").references(() => reps.id, {
+      onDelete: "set null",
+    }),
+  }),
+  (t) => [
+    index("today_rep_user_practice_idx").on(t.userId, t.practiceTime),
+    index("today_rep_user_exercise_idx").on(t.userId, t.exerciseName),
   ],
 );
 

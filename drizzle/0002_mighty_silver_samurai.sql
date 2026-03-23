@@ -1,1 +1,16 @@
-ALTER TABLE "vestibulon2_program" ADD CONSTRAINT "vestibulon2_program_user_id_vestibulon2_user_profile_workos_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."vestibulon2_user_profile"("workos_user_id") ON DELETE no action ON UPDATE no action;
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1
+		FROM pg_constraint
+		WHERE conname = 'vestibulon2_program_user_id_vestibulon2_user_profile_workos_user_id_fk'
+	) THEN
+		ALTER TABLE "vestibulon2_program"
+		ADD CONSTRAINT "vestibulon2_program_user_id_vestibulon2_user_profile_workos_user_id_fk"
+		FOREIGN KEY ("user_id")
+		REFERENCES "public"."vestibulon2_user_profile"("workos_user_id")
+		ON DELETE no action
+		ON UPDATE no action;
+	END IF;
+END
+$$;

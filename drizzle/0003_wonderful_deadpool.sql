@@ -1,0 +1,1 @@
+ALTER TABLE "vestibulon2_program" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;

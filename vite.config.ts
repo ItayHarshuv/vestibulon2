@@ -12,6 +12,8 @@ import { callVercelApiHandler } from "./api/devAdapter";
 import meHandler from "./api/me";
 import programsHandler from "./api/programs";
 import repsHandler from "./api/reps";
+import todayRepsHandler from "./api/today-reps";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +35,7 @@ export default defineConfig({
           "/me": meHandler,
           "/programs": programsHandler,
           "/reps": repsHandler,
+          "/today-reps": todayRepsHandler,
         };
 
         server.middlewares.use("/api", (req, res, next) => {

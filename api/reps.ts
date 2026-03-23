@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
 import { db } from "./db/index.js";
 import { programs, reps } from "./db/schema.js";
+import { assignRepToTodayRepSlot } from "./today-reps-service.js";
 import {
   createRepBodySchema,
   getZodErrorMessage,
@@ -73,6 +74,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(500).json({ error: "Failed to create rep" });
         return;
       }
+
+      await assignRepToTodayRepSlot(
+        authenticatedUserId,
+        program.exerciseName,
+        createdRep.id,
+      );
 
       res.status(201).json(createdRep);
       return;

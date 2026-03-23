@@ -83,7 +83,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recomendedVAS: programs.recomendedVAS,
       })
       .from(programs)
-      .where(eq(programs.userId, authenticatedUser.id))
+      .where(
+        and(eq(programs.userId, authenticatedUser.id), eq(programs.active, true)),
+      )
       .orderBy(programs.createdAt);
 
     res.status(200).json(userPrograms);

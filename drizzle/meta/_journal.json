@@ -22,6 +22,20 @@
       "when": 1774255400000,
       "tag": "0002_mighty_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774258903282,
+      "tag": "0003_wonderful_deadpool",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774260194050,
+      "tag": "0004_smiling_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }
