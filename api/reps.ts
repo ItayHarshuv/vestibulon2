@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
 import { db } from "./db/index.js";
-import { reps } from "./db/schema.js";
+import { programs, reps } from "./db/schema.js";
 import {
   createRepBodySchema,
   getZodErrorMessage,
@@ -32,14 +32,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const { exerciseName } = bodyResult.data;
+      const { programId } = bodyResult.data;
+      const matchingPrograms = await db
+        .select({
+          id: programs.id,
+          exerciseName: programs.exerciseName,
+        })
+        .from(programs)
+        .where(
+          and(
+            eq(programs.id, programId),
+            eq(programs.userId, authenticatedUserId),
+          ),
+        )
+        .limit(1);
+
+      const program = matchingPrograms[0];
+      if (!program) {
+        res.status(404).json({ error: "Program not found" });
+        return;
+      }
+
       const now = new Date();
 
       const inserted = await db
         .insert(reps)
         .values({
+          programId: program.id,
           userId: authenticatedUserId,
-          exerciseName,
+          exerciseName: program.exerciseName,
           startTime: now,
         })
         .returning({

@@ -1,28 +1,10 @@
 // Shared Drizzle schema (used by Vercel functions + local dev)
 // Keep this as the single source of truth.
 
+import { relations } from "drizzle-orm";
 import { index, pgTableCreator } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `vestibulon2_${name}`);
-
-export const reps = createTable(
-  "rep",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d.varchar("user_id", { length: 256 }).notNull(),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
-    dizziness: d.integer(),
-    nausea: d.integer(),
-    generalDifficulty: d.integer("general_difficulty"),
-    restTime: d.integer("rest_time"),
-    startTime: d.timestamp("start_time", { withTimezone: true }).notNull(),
-    endTime: d.timestamp("end_time", { withTimezone: true }),
-    bpmEndOfRep: d.integer("bpm_end_of_rep"),
-    flagInterrupted: d.boolean("flag_interrupted").default(false),
-    flagPaused: d.boolean("flag_paused").default(false),
-  }),
-  (t) => [index("rep_user_exercise_idx").on(t.userId, t.exerciseName)],
-);
 
 export const programs = createTable(
   "program",
@@ -44,6 +26,42 @@ export const programs = createTable(
   }),
   (t) => [index("program_user_exercise_idx").on(t.userId, t.exerciseName)],
 );
+
+export const reps = createTable(
+  "rep",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    programId: d.integer("program_id").references(() => programs.id, {
+      onDelete: "cascade",
+    }),
+    userId: d.varchar("user_id", { length: 256 }).notNull(),
+    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    dizziness: d.integer(),
+    nausea: d.integer(),
+    generalDifficulty: d.integer("general_difficulty"),
+    restTime: d.integer("rest_time"),
+    startTime: d.timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: d.timestamp("end_time", { withTimezone: true }),
+    bpmEndOfRep: d.integer("bpm_end_of_rep"),
+    flagInterrupted: d.boolean("flag_interrupted").default(false),
+    flagPaused: d.boolean("flag_paused").default(false),
+  }),
+  (t) => [
+    index("rep_program_idx").on(t.programId),
+    index("rep_user_exercise_idx").on(t.userId, t.exerciseName),
+  ],
+);
+
+export const programsRelations = relations(programs, ({ many }) => ({
+  reps: many(reps),
+}));
+
+export const repsRelations = relations(reps, ({ one }) => ({
+  program: one(programs, {
+    fields: [reps.programId],
+    references: [programs.id],
+  }),
+}));
 
 export const userProfiles = createTable(
   "user_profile",

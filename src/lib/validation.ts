@@ -137,7 +137,7 @@ export const programsResponseSchema = z.array(apiProgramSchema);
 export const createRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    exerciseName: requiredTrimmedString("Missing exerciseName"),
+    programId: integerField("programId is required"),
   }),
 );
 

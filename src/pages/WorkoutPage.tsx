@@ -114,14 +114,13 @@ export function WorkoutPage() {
     if (!program || isLoading || !user || hasCreatedRepRef.current) return;
 
     hasCreatedRepRef.current = true;
-    const currentExerciseName = program.exerciseName;
 
     void (async () => {
       try {
         const response = await apiFetch("/api/reps", {
           method: "POST",
           body: JSON.stringify({
-            exerciseName: currentExerciseName,
+            programId: program.id,
           }),
         });
 
