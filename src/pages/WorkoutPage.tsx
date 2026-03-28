@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
@@ -12,8 +12,11 @@ import {
   programsResponseSchema,
 } from "~/lib/validation";
 
+const startedWorkoutKeys = new Set<string>();
+
 export function WorkoutPage() {
   const { isLoading, user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const { programId } = useParams<{ programId: string }>();
   const [program, setProgram] = useState<ApiProgram | null>(null);
@@ -113,7 +116,11 @@ export function WorkoutPage() {
   useEffect(() => {
     if (!program || isLoading || !user || hasCreatedRepRef.current) return;
 
+    const startKey = `${location.key}:${program.id}`;
+    if (startedWorkoutKeys.has(startKey)) return;
+
     hasCreatedRepRef.current = true;
+    startedWorkoutKeys.add(startKey);
 
     void (async () => {
       try {
@@ -147,10 +154,12 @@ export function WorkoutPage() {
 
         setWorkoutStartTimestampMs(fallbackWorkoutStartTimestampRef.current);
       } catch (err) {
+        startedWorkoutKeys.delete(startKey);
+        hasCreatedRepRef.current = false;
         console.error("Error creating rep record:", err);
       }
     })();
-  }, [isLoading, program, user]);
+  }, [isLoading, location.key, program, user]);
 
   useEffect(() => {
     if (
