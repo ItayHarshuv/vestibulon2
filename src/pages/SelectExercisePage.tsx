@@ -21,6 +21,10 @@ interface TodayRepRow {
   repId: number | null;
 }
 
+function getPracticeTimeKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 export function SelectExercisePage() {
   const { isLoading, user } = useAuth();
   const navigate = useNavigate();
@@ -86,17 +90,55 @@ export function SelectExercisePage() {
     [programs, selectedProgramId],
   );
 
-  const todayProgressByExercise = useMemo(() => {
-    return todayReps.reduce<Record<string, { completed: number; total: number }>>((acc, row) => {
-      const current = acc[row.exerciseName] ?? { completed: 0, total: 0 };
-      current.total += 1;
-      if (row.repId !== null) {
-        current.completed += 1;
+  const currentSessionPracticeTimeKey = useMemo(() => {
+    const now = new Date();
+    const scheduledRows = todayReps.map((row) => ({
+      ...row,
+      practiceDate: new Date(row.practiceTime),
+    }));
+    const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceDate <= now);
+    const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
+    const latestDuePracticeTimeKey = latestScheduledRow
+      ? getPracticeTimeKey(latestScheduledRow.practiceDate)
+      : null;
+
+    if (latestDuePracticeTimeKey) {
+      const latestDuePendingRow = scheduledRows.find(
+        (row) =>
+          getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey && row.repId === null,
+      );
+
+      if (latestDuePendingRow) {
+        return latestDuePracticeTimeKey;
       }
-      acc[row.exerciseName] = current;
+    }
+
+    const nextPendingRow = scheduledRows.find((row) => row.practiceDate > now && row.repId === null);
+    return nextPendingRow ? getPracticeTimeKey(nextPendingRow.practiceDate) : null;
+  }, [todayReps]);
+
+  const completedSessionRepsByExercise = useMemo(() => {
+    if (currentSessionPracticeTimeKey === null) {
+      return {};
+    }
+
+    return todayReps.reduce<Record<string, number>>((acc, row) => {
+      if (
+        getPracticeTimeKey(new Date(row.practiceTime)) !== currentSessionPracticeTimeKey ||
+        row.repId === null
+      ) {
+        return acc;
+      }
+
+      acc[row.exerciseName] = (acc[row.exerciseName] ?? 0) + 1;
       return acc;
     }, {});
-  }, [todayReps]);
+  }, [currentSessionPracticeTimeKey, todayReps]);
+
+  const hasPendingTodayReps = useMemo(
+    () => todayReps.some((row) => row.repId === null),
+    [todayReps],
+  );
 
   return (
     <main
@@ -124,13 +166,15 @@ export function SelectExercisePage() {
       {!loading && !error && programs.length > 0 && (
         <div className="mt-8 space-y-6">
           {programs.map((program) => {
-            const progress = todayProgressByExercise[program.exerciseName] ?? {
-              completed: 0,
-              total: 0,
-            };
-            const completionPercent =
-              progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
-            const isComplete = progress.total > 0 && progress.completed === progress.total;
+            const total = program.numberOfRepetions;
+            const completed =
+              currentSessionPracticeTimeKey === null
+                ? hasPendingTodayReps
+                  ? 0
+                  : total
+                : completedSessionRepsByExercise[program.exerciseName] ?? 0;
+            const completionPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+            const isComplete = total > 0 && completed === total;
 
             return (
               <label
@@ -156,7 +200,7 @@ export function SelectExercisePage() {
                     <div className="flex items-center justify-between text-lg font-semibold text-gray-900">
                       <span>{program.exerciseName}</span>
                       <span className="text-gray-800">
-                        בוצע {progress.completed} מתוך {progress.total}
+                        בוצע {completed} מתוך {total}
                       </span>
                     </div>
 

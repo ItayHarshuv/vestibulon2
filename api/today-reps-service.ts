@@ -51,6 +51,18 @@ function getPracticeTimeKeyInTimeZone(date: Date, timeZone: string) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}-${String(hour).padStart(2, "0")}-${String(minute).padStart(2, "0")}`;
 }
 
+function compareScheduledRows(
+  left: { exerciseName: string; practiceTime: Date },
+  right: { exerciseName: string; practiceTime: Date },
+) {
+  const timeDifference = left.practiceTime.getTime() - right.practiceTime.getTime();
+  if (timeDifference !== 0) {
+    return timeDifference;
+  }
+
+  return left.exerciseName.localeCompare(right.exerciseName);
+}
+
 // Convert a wall-clock time in the given timezone into a UTC Date for storage.
 function createDateInTimeZone(
   year: number,
@@ -162,11 +174,13 @@ export async function ensureTodayRepsForUser(
   const existingTodayRows = existingRows.filter(
     (row) => getDateKeyInTimeZone(row.practiceTime, timeZone) === todayKey,
   );
+  const sortedExistingTodayRows = [...existingTodayRows].sort(compareScheduledRows);
+  const sortedScheduledRows = [...scheduledRows].sort(compareScheduledRows);
   const matchesExpectedSchedule =
     existingRows.length === existingTodayRows.length &&
-    existingTodayRows.length === scheduledRows.length &&
-    existingTodayRows.every((row, index) => {
-      const expectedRow = scheduledRows[index];
+    sortedExistingTodayRows.length === sortedScheduledRows.length &&
+    sortedExistingTodayRows.every((row, index) => {
+      const expectedRow = sortedScheduledRows[index];
       return (
         expectedRow !== undefined &&
         row.exerciseName === expectedRow.exerciseName &&
