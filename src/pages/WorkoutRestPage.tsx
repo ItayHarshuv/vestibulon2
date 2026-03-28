@@ -10,6 +10,10 @@ import {
   workoutLocationStateSchema,
 } from "~/lib/validation";
 
+function getPracticeTimeKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 export function WorkoutRestPage() {
   const navigate = useNavigate();
   const { programId, repId } = useParams<{
@@ -37,9 +41,10 @@ export function WorkoutRestPage() {
   const parsedProgramId = routeParamsResult.success
     ? routeParamsResult.data.programId
     : null;
+  const parsedRepId = routeParamsResult.success ? routeParamsResult.data.repId : null;
 
   useEffect(() => {
-    if (parsedProgramId === null) {
+    if (parsedProgramId === null || parsedRepId === null) {
       setIsLoading(false);
       setError(
         routeParamsResult.success
@@ -93,9 +98,19 @@ export function WorkoutRestPage() {
           throw new Error("Program not found");
         }
 
+        const currentRepRow = todayRepsResult.data.find((row) => row.repId === parsedRepId);
+        if (!currentRepRow) {
+          throw new Error("Completed rep slot not found");
+        }
+
+        const currentSessionPracticeTimeKey = getPracticeTimeKey(
+          new Date(currentRepRow.practiceTime),
+        );
         const completedCurrentExerciseReps = todayRepsResult.data.filter(
           (row) =>
-            row.exerciseName === currentProgram.exerciseName && row.repId !== null,
+            row.exerciseName === currentProgram.exerciseName &&
+            getPracticeTimeKey(new Date(row.practiceTime)) === currentSessionPracticeTimeKey &&
+            row.repId !== null,
         ).length;
 
         setIsLastRepInExercise(
@@ -108,7 +123,7 @@ export function WorkoutRestPage() {
         setIsLoading(false);
       }
     })();
-  }, [parsedProgramId, routeParamsResult]);
+  }, [parsedProgramId, parsedRepId, routeParamsResult]);
 
   const primaryButtonLabel = isLastRepInExercise
     ? "התאוששתי, נמשיך לתרגיל הבא!"
