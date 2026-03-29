@@ -15,27 +15,57 @@ interface SliderQuestionProps {
 }
 
 function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
+  const [isInteracting, setIsInteracting] = useState(false);
+  const displayedValue = value ?? 0;
+  const bubblePositionPercent = ((10 - displayedValue) / 10  - ((5 - displayedValue) / 300)) * 100;
+
   return (
     <section className="mt-8">
       <p className="text-right text-3xl font-semibold text-gray-900">{label}</p>
 
-      <div className="mt-3" dir="ltr">
-        <div className="mb-2 flex items-center justify-between text-4xl font-semibold text-gray-900">
-          <span>10</span>
-          <span>0</span>
+      <div className="mt-3 flex items-center gap-4" dir="ltr">
+        <span className="shrink-0 text-4xl font-semibold text-gray-900">10</span>
+
+        <div className="relative flex h-10 flex-1 items-center">
+          {isInteracting && (
+            <div
+              className="pointer-events-none absolute bottom-full -translate-x-1/2 rounded-full bg-blue-500 px-3 py-1 text-lg font-bold text-white shadow-md"
+              style={{ left: `${bubblePositionPercent}%` }}
+            >
+              {displayedValue}
+            </div>
+          )}
+
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={1}
+            value={displayedValue}
+            onChange={(event) => {
+              onChange(Number(event.target.value));
+            }}
+            onPointerDown={() => {
+              setIsInteracting(true);
+            }}
+            onPointerUp={() => {
+              setIsInteracting(false);
+            }}
+            onPointerCancel={() => {
+              setIsInteracting(false);
+            }}
+            onFocus={() => {
+              setIsInteracting(true);
+            }}
+            onBlur={() => {
+              setIsInteracting(false);
+            }}
+            className="h-2 w-full cursor-pointer accent-blue-500"
+            style={{ direction: "rtl" }}
+          />
         </div>
 
-        <input
-          type="range"
-          min={0}
-          max={10}
-          step={1}
-          value={value ?? 0}
-          onChange={(event) => {
-            onChange(Number(event.target.value));
-          }}
-          className="h-2 w-full cursor-pointer accent-blue-500"
-        />
+        <span className="shrink-0 text-4xl font-semibold text-gray-900">0</span>
       </div>
     </section>
   );
