@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "./db/index.js";
 import { programs, todayReps, userProfiles } from "./db/schema.js";
 
@@ -49,6 +49,55 @@ function getDateKeyInTimeZone(date: Date, timeZone: string) {
 function getPracticeTimeKeyInTimeZone(date: Date, timeZone: string) {
   const { year, month, day, hour, minute } = getTimeZoneParts(date, timeZone);
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}-${String(hour).padStart(2, "0")}-${String(minute).padStart(2, "0")}`;
+}
+
+function getDistinctSessionPracticeTimes(
+  rows: { practiceTime: Date }[],
+  timeZone: string,
+) {
+  const practiceTimesByKey = new Map<string, Date>();
+
+  for (const row of rows) {
+    const practiceTimeKey = getPracticeTimeKeyInTimeZone(row.practiceTime, timeZone);
+    if (!practiceTimesByKey.has(practiceTimeKey)) {
+      practiceTimesByKey.set(practiceTimeKey, row.practiceTime);
+    }
+  }
+
+  return [...practiceTimesByKey.values()].sort(
+    (left, right) => left.getTime() - right.getTime(),
+  );
+}
+
+function getTodaySessionGroups(
+  rows: { id: number; practiceTime: Date }[],
+  timeZone: string,
+) {
+  const groupsByKey = new Map<
+    string,
+    {
+      practiceTime: Date;
+      rowIds: number[];
+    }
+  >();
+
+  for (const row of rows) {
+    const practiceTimeKey = getPracticeTimeKeyInTimeZone(row.practiceTime, timeZone);
+    const existingGroup = groupsByKey.get(practiceTimeKey);
+    if (existingGroup) {
+      existingGroup.rowIds.push(row.id);
+      continue;
+    }
+
+    groupsByKey.set(practiceTimeKey, {
+      practiceTime: row.practiceTime,
+      rowIds: [row.id],
+    });
+  }
+
+  return [...groupsByKey.values()].sort(
+    (left, right) => left.practiceTime.getTime() - right.practiceTime.getTime(),
+  );
 }
 
 function compareScheduledRows(
@@ -126,6 +175,11 @@ function buildPracticeTimes(totalSessions: number, timeZone: string) {
   });
 }
 
+function parseSessionTime(sessionTime: string) {
+  const [hour, minute] = sessionTime.split(":").map(Number);
+  return { hour: hour ?? 0, minute: minute ?? 0 };
+}
+
 export async function ensureTodayRepsForUser(
   userId: string,
   timeZone: string,
@@ -161,7 +215,17 @@ export async function ensureTodayRepsForUser(
     .where(and(eq(programs.userId, userId), eq(programs.active, true)))
     .orderBy(programs.createdAt, programs.id);
 
-  const sessionPracticeTimes = buildPracticeTimes(numberOfSessions, timeZone);
+  const existingTodayRows = existingRows.filter(
+    (row) => getDateKeyInTimeZone(row.practiceTime, timeZone) === todayKey,
+  );
+  const existingTodaySessionPracticeTimes = getDistinctSessionPracticeTimes(
+    existingTodayRows,
+    timeZone,
+  );
+  const sessionPracticeTimes =
+    existingTodaySessionPracticeTimes.length === numberOfSessions
+      ? existingTodaySessionPracticeTimes
+      : buildPracticeTimes(numberOfSessions, timeZone);
   const scheduledRows = activePrograms.flatMap((program) =>
     sessionPracticeTimes.flatMap((practiceTime) =>
       Array.from({ length: program.numberOfRepetions }, () => ({
@@ -169,10 +233,6 @@ export async function ensureTodayRepsForUser(
         practiceTime,
       })),
     ),
-  );
-
-  const existingTodayRows = existingRows.filter(
-    (row) => getDateKeyInTimeZone(row.practiceTime, timeZone) === todayKey,
   );
   const sortedExistingTodayRows = [...existingTodayRows].sort(compareScheduledRows);
   const sortedScheduledRows = [...scheduledRows].sort(compareScheduledRows);
@@ -182,9 +242,8 @@ export async function ensureTodayRepsForUser(
     sortedExistingTodayRows.every((row, index) => {
       const expectedRow = sortedScheduledRows[index];
       return (
-        expectedRow !== undefined &&
-        row.exerciseName === expectedRow.exerciseName &&
-        row.practiceTime.getTime() === expectedRow.practiceTime.getTime()
+        row.exerciseName === expectedRow?.exerciseName &&
+        row.practiceTime.getTime() === expectedRow?.practiceTime.getTime()
       );
     });
 
@@ -271,4 +330,51 @@ export async function assignRepToTodayRepSlot(
 
   await db.update(todayReps).set({ repId }).where(eq(todayReps.id, row.id));
   return true;
+}
+
+export async function updateTodayRepSessionTimesForUser(
+  userId: string,
+  timeZone: string,
+  sessionTimes: string[],
+) {
+  getTimeZoneParts(new Date(), timeZone);
+  await ensureTodayRepsForUser(userId, timeZone);
+
+  const todayRows = await getTodayRepRowsForUser(userId, timeZone);
+  const sessionGroups = getTodaySessionGroups(todayRows, timeZone);
+
+  if (sessionGroups.length !== sessionTimes.length) {
+    throw new Error("Session times count does not match today's schedule");
+  }
+
+  if (sessionGroups.length === 0) {
+    return { rowsUpdated: 0 };
+  }
+
+  const { year, month, day } = getTimeZoneParts(new Date(), timeZone);
+  const nextPracticeTimes = [...sessionTimes]
+    .sort((left, right) => left.localeCompare(right))
+    .map((sessionTime) => {
+      const { hour, minute } = parseSessionTime(sessionTime);
+      return createDateInTimeZone(year, month, day, hour, minute, timeZone);
+    });
+
+  for (const [index, sessionGroup] of sessionGroups.entries()) {
+    const nextPracticeTime = nextPracticeTimes[index];
+    if (!nextPracticeTime) {
+      continue;
+    }
+
+    await db
+      .update(todayReps)
+      .set({ practiceTime: nextPracticeTime })
+      .where(
+        and(
+          eq(todayReps.userId, userId),
+          inArray(todayReps.id, sessionGroup.rowIds),
+        ),
+      );
+  }
+
+  return { rowsUpdated: todayRows.length };
 }

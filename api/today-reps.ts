@@ -3,19 +3,21 @@ import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
 import {
   ensureTodayRepsForUser,
   getTodayRepRowsForUser,
+  updateTodayRepSessionTimesForUser,
 } from "./today-reps-service.js";
 import {
   getZodErrorMessage,
   syncTodayRepsBodySchema,
   todayRepsQuerySchema,
+  updateTodayRepsScheduleBodySchema,
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleOptions(req, res, "GET,POST,OPTIONS")) {
+  if (handleOptions(req, res, "GET,POST,PATCH,OPTIONS")) {
     return;
   }
 
-  setApiHeaders(req, res, "GET,POST,OPTIONS");
+  setApiHeaders(req, res, "GET,POST,PATCH,OPTIONS");
 
   try {
     const authenticatedUser = await getAuthenticatedUser(req, res);
@@ -36,6 +38,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const rows = await getTodayRepRowsForUser(
         authenticatedUser.id,
         queryResult.data.timeZone,
+      );
+
+      res.status(200).json(rows);
+      return;
+    }
+
+    if (req.method === "PATCH") {
+      const bodyResult = updateTodayRepsScheduleBodySchema.safeParse(req.body);
+      if (!bodyResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
+        return;
+      }
+
+      await updateTodayRepSessionTimesForUser(
+        authenticatedUser.id,
+        bodyResult.data.timeZone,
+        bodyResult.data.sessionTimes,
+      );
+
+      const rows = await getTodayRepRowsForUser(
+        authenticatedUser.id,
+        bodyResult.data.timeZone,
       );
 
       res.status(200).json(rows);

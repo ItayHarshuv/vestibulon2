@@ -159,6 +159,31 @@ export const syncTodayRepsBodySchema = z.preprocess(
   }),
 );
 
+const sessionTimeSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+  message: "sessionTimes must contain valid HH:MM values",
+});
+
+export const updateTodayRepsScheduleBodySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    timeZone: requiredTrimmedString("timeZone is required"),
+    sessionTimes: z
+      .array(sessionTimeSchema, {
+        required_error: "sessionTimes is required",
+        invalid_type_error: "sessionTimes must be an array",
+      })
+      .min(1, "sessionTimes must include at least one value")
+      .superRefine((sessionTimes, context) => {
+        if (new Set(sessionTimes).size !== sessionTimes.length) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "sessionTimes must contain unique values",
+          });
+        }
+      }),
+  }),
+);
+
 const updateRepBodyBaseSchema = z
   .object({
     repId: integerField("repId is required"),

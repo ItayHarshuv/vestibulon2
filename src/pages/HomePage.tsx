@@ -211,7 +211,7 @@ export function HomePage() {
       {/* Button cards */}
       <div className="mt-8 flex w-full max-w-lg flex-col gap-5">
         <HomeActionButton
-          to="/"
+          to="/schedule"
           label="קביעת זמני תרגול"
           iconSrc="/assets/icons/clock.svg"
         />

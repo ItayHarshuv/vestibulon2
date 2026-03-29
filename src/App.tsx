@@ -6,6 +6,7 @@ import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
+import { SchedulePage } from "./pages/SchedulePage";
 import { SelectExercisePage } from "./pages/SelectExercisePage";
 import { WorkoutPage } from "./pages/WorkoutPage";
 import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
@@ -54,6 +55,14 @@ export function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route
+            path="/schedule"
+            element={
+              <AuthGate>
+                <SchedulePage />
+              </AuthGate>
+            }
+          />
           <Route
             path="/select-exercise"
             element={
