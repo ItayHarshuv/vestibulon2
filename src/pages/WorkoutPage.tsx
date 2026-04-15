@@ -10,9 +10,14 @@ import {
   getZodErrorMessage,
   programRouteParamsSchema,
   programsResponseSchema,
+  todayRepsResponseSchema,
 } from "~/lib/validation";
 
 const startedWorkoutKeys = new Set<string>();
+
+function getPracticeTimeKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
+}
 
 export function WorkoutPage() {
   const { isLoading, user } = useAuth();
@@ -25,6 +30,7 @@ export function WorkoutPage() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [currentBpm, setCurrentBpm] = useState(120);
+  const [currentRepNumber, setCurrentRepNumber] = useState(1);
   const [activeRepId, setActiveRepId] = useState<number | null>(null);
   const [workoutStartTimestampMs, setWorkoutStartTimestampMs] = useState<
     number | null
@@ -95,9 +101,93 @@ export function WorkoutPage() {
     hasPausedInRepRef.current = false;
     hasNavigatedToFinishRef.current = false;
     setActiveRepId(null);
+    setCurrentRepNumber(1);
     setWorkoutStartTimestampMs(null);
     fallbackWorkoutStartTimestampRef.current = Date.now();
   }, [program]);
+
+  useEffect(() => {
+    if (!program || isLoading || !user) return;
+
+    void (async () => {
+      try {
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const response = await apiFetch(
+          `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch today's reps");
+        }
+
+        const todayRepsResult = todayRepsResponseSchema.safeParse(
+          await response.json(),
+        );
+        if (!todayRepsResult.success) {
+          throw new Error(
+            getZodErrorMessage(
+              todayRepsResult.error,
+              "Invalid today's reps response",
+            ),
+          );
+        }
+
+        const now = new Date();
+        const scheduledRows = todayRepsResult.data.map((row) => ({
+          ...row,
+          practiceDate: new Date(row.practiceTime),
+        }));
+        const pastOrCurrentRows = scheduledRows.filter(
+          (row) => row.practiceDate <= now,
+        );
+        const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
+        const latestDuePracticeTimeKey = latestScheduledRow
+          ? getPracticeTimeKey(latestScheduledRow.practiceDate)
+          : null;
+
+        const currentSessionPracticeTimeKey = (() => {
+          if (latestDuePracticeTimeKey) {
+            const latestDuePendingRow = scheduledRows.find(
+              (row) =>
+                getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey &&
+                row.repId === null,
+            );
+
+            if (latestDuePendingRow) {
+              return latestDuePracticeTimeKey;
+            }
+          }
+
+          const nextPendingRow = scheduledRows.find(
+            (row) => row.practiceDate > now && row.repId === null,
+          );
+          return nextPendingRow
+            ? getPracticeTimeKey(nextPendingRow.practiceDate)
+            : null;
+        })();
+
+        if (currentSessionPracticeTimeKey === null) {
+          setCurrentRepNumber(1);
+          return;
+        }
+
+        const completedCurrentExerciseReps = todayRepsResult.data.filter(
+          (row) =>
+            row.exerciseName === program.exerciseName &&
+            getPracticeTimeKey(new Date(row.practiceTime)) ===
+              currentSessionPracticeTimeKey &&
+            row.repId !== null,
+        ).length;
+
+        setCurrentRepNumber(
+          Math.min(completedCurrentExerciseReps + 1, program.numberOfRepetions),
+        );
+      } catch (fetchError) {
+        console.error("Error loading workout rep number:", fetchError);
+        setCurrentRepNumber(1);
+      }
+    })();
+  }, [isLoading, program, user]);
 
   useEffect(() => {
     if (!program || isPaused || remainingSeconds <= 0) return;
@@ -299,15 +389,15 @@ export function WorkoutPage() {
       dir="rtl"
       className="mx-auto min-h-[calc(100vh-4rem)] w-full max-w-4xl bg-white px-4 py-8 sm:px-5"
     >
-      <h1 className="text-center text-4xl font-bold text-gray-900">
+      <h1 className="text-center text-3xl font-bold text-gray-900">
         {program.exerciseName}
       </h1>
 
-      <p className="mt-6 text-center text-3xl font-semibold text-gray-900">
-        תרגול 0 מתוך {program.numberOfRepetions}
+      <p className="mt-6 text-center text-xl font-semibold text-gray-900">
+        תרגול {currentRepNumber} מתוך {program.numberOfRepetions}
       </p>
 
-      <p className="mt-6 text-center text-5xl font-bold text-gray-900">
+      <p className="mt-6 text-center text-4xl font-bold text-gray-900">
         {remainingSeconds}
       </p>
 
@@ -317,13 +407,7 @@ export function WorkoutPage() {
         onBpmChange={handleMetronomeBpmChange}
       />
 
-      <img
-        src={exerciseTemplate.exImage}
-        alt={`איור עבור ${program.exerciseName}`}
-        className="mx-auto mt-12 w-full max-w-md object-contain"
-      />
-
-      <div className="mt-8 flex justify-center">
+      <div className="mt-12 flex justify-center">
         <button
           type="button"
           onClick={() =>
@@ -345,6 +429,13 @@ export function WorkoutPage() {
           {isPaused ? "המשך תרגול" : "השהייה"}
         </button>
       </div>
+
+      <img
+        src={exerciseTemplate.exImage}
+        alt={`איור עבור ${program.exerciseName}`}
+        className="mx-auto mt-12 w-full max-w-md object-contain"
+      />
+
     </main>
   );
 }

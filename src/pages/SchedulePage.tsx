@@ -40,14 +40,6 @@ function extractSessionTimes(todayReps: TodayRepRow[]) {
   return [...distinctSessionTimes.values()];
 }
 
-function openTimePicker(input: HTMLInputElement) {
-  const inputWithPicker = input as HTMLInputElement & {
-    showPicker?: () => void;
-  };
-
-  inputWithPicker.showPicker?.();
-}
-
 export function SchedulePage() {
   const { isLoading, user } = useAuth();
   const [sessionTimes, setSessionTimes] = useState<string[]>([]);
@@ -218,12 +210,6 @@ export function SchedulePage() {
                 <input
                   type="time"
                   value={sessionTime}
-                  onClick={(event) => {
-                    openTimePicker(event.currentTarget);
-                  }}
-                  onFocus={(event) => {
-                    openTimePicker(event.currentTarget);
-                  }}
                   onChange={(event) => {
                     const nextSessionTimes = [...sessionTimes];
                     nextSessionTimes[index] = event.target.value;

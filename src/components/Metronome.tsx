@@ -83,7 +83,7 @@ export function Metronome({ bpm, isRunning, onBpmChange }: MetronomeProps) {
 
   return (
     <section className="mt-8">
-      <p className="text-center text-2xl font-semibold text-gray-900">
+      <p className="text-center text-xl font-semibold text-gray-900">
         מהירות מטרונות: {sliderValue} פעימות לדקה
       </p>
 
