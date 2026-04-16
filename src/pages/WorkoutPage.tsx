@@ -294,8 +294,12 @@ export function WorkoutPage() {
         console.error("Error updating rep record:", err);
       } finally {
         hasNavigatedToFinishRef.current = true;
+        const completedWorkoutEndTimestampMs =
+          (workoutStartTimestampMs ?? fallbackWorkoutStartTimestampRef.current) +
+          durationSeconds * 1000;
         void navigate(`/workout-finish/${program.id}/${activeRepId}`, {
           state: {
+            workoutEndTimestampMs: completedWorkoutEndTimestampMs,
             workoutStartTimestampMs:
               workoutStartTimestampMs ??
               fallbackWorkoutStartTimestampRef.current,

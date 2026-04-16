@@ -8,6 +8,7 @@ import { SignUpPage } from "./pages/SignUpPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { SelectExercisePage } from "./pages/SelectExercisePage";
+import { SessionCompletePage } from "./pages/SessionCompletePage";
 import { WorkoutPage } from "./pages/WorkoutPage";
 import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
 import { WorkoutRestPage } from "./pages/WorkoutRestPage";
@@ -76,6 +77,14 @@ export function App() {
             element={
               <AuthGate>
                 <ExerciseDescriptionPage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/session-complete"
+            element={
+              <AuthGate>
+                <SessionCompletePage />
               </AuthGate>
             }
           />

@@ -107,6 +107,7 @@ export const workoutFinishRouteParamsSchema = z.object({
 });
 
 export const workoutLocationStateSchema = z.object({
+  workoutEndTimestampMs: z.number().finite().optional(),
   workoutStartTimestampMs: z.number().finite().optional(),
 });
 
@@ -149,6 +150,33 @@ export const createRepBodySchema = z.preprocess(
   z.object({
     programId: integerField("programId is required"),
     timeZone: requiredTrimmedString("timeZone is required"),
+  }),
+);
+
+export const getRepsQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    ids: z.preprocess(
+      (value) => {
+        const rawValue =
+          typeof value === "string"
+            ? value
+            : Array.isArray(value) && typeof value[0] === "string"
+              ? value[0]
+              : null;
+
+        if (rawValue === null) {
+          return [];
+        }
+
+        return rawValue
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .map((part) => Number(part));
+      },
+      z.array(integerField("rep id must be an integer")).min(1, "ids is required"),
+    ),
   }),
 );
 
@@ -234,6 +262,12 @@ export const createRepResponseSchema = z.object({
   startTime: z.string(),
 });
 
+export const apiRepSummarySchema = z.object({
+  id: z.number().int(),
+  startTime: z.string(),
+  endTime: z.string().nullable(),
+});
+
 export const todayRepRowSchema = z.object({
   id: z.number().int(),
   practiceTime: z.string(),
@@ -242,6 +276,7 @@ export const todayRepRowSchema = z.object({
 });
 
 export const todayRepsResponseSchema = z.array(todayRepRowSchema);
+export const repsResponseSchema = z.array(apiRepSummarySchema);
 
 export type ApiProgram = z.infer<typeof apiProgramSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;
@@ -250,3 +285,4 @@ export type SignUpForm = z.infer<typeof signUpFormSchema>;
 export type UpdateProgramBody = z.infer<typeof updateProgramBodySchema>;
 export type CreateRepBody = z.infer<typeof createRepBodySchema>;
 export type UpdateRepBody = z.infer<typeof updateRepBodySchema>;
+export type ApiRepSummary = z.infer<typeof apiRepSummarySchema>;

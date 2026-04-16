@@ -78,7 +78,7 @@ export function WorkoutFinishPage() {
     repId: string;
   }>();
   const location = useLocation();
-  const fallbackStartTimestampRef = useRef<number>(Date.now());
+  const fallbackEndTimestampRef = useRef<number>(Date.now());
   const [dizziness, setDizziness] = useState<number | null>(null);
   const [nausea, setNausea] = useState<number | null>(null);
   const [generalDifficulty, setGeneralDifficulty] = useState<number | null>(
@@ -93,8 +93,10 @@ export function WorkoutFinishPage() {
   const locationState = locationStateResult.success
     ? locationStateResult.data
     : null;
-  const workoutStartTimestampMs =
-    locationState?.workoutStartTimestampMs ?? fallbackStartTimestampRef.current;
+  const workoutEndTimestampMs =
+    locationState?.workoutEndTimestampMs ??
+    locationState?.workoutStartTimestampMs ??
+    fallbackEndTimestampRef.current;
 
   const routeParamsResult = useMemo(
     () => workoutFinishRouteParamsSchema.safeParse({ programId, repId }),
@@ -150,7 +152,7 @@ export function WorkoutFinishPage() {
 
       await navigate(`/workout-rest/${parsedProgramId}/${parsedRepId}`, {
         state: {
-          workoutStartTimestampMs,
+          workoutEndTimestampMs,
         },
       });
     } catch (submitError) {
@@ -167,7 +169,7 @@ export function WorkoutFinishPage() {
       className="mx-auto min-h-[calc(100vh-4rem)] w-full max-w-4xl bg-white px-4 py-8 sm:px-5"
     >
       <WorkoutStopwatch
-        startTimestampMs={workoutStartTimestampMs}
+        startTimestampMs={workoutEndTimestampMs}
         prefixText="הזמן שחלף מרגע סיום התרגול:"
       />
 

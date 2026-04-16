@@ -5,6 +5,7 @@ import { apiFetch } from "~/lib/api";
 import {
   getZodErrorMessage,
   programsResponseSchema,
+  repsResponseSchema,
   todayRepsResponseSchema,
   workoutFinishRouteParamsSchema,
   workoutLocationStateSchema,
@@ -14,6 +15,18 @@ function getPracticeTimeKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatElapsedDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+interface RestTimeEntry {
+  label: string;
+  elapsedSeconds: number | null;
+  liveStartTimestampMs: number | null;
+}
+
 export function WorkoutRestPage() {
   const navigate = useNavigate();
   const { programId, repId } = useParams<{
@@ -21,9 +34,12 @@ export function WorkoutRestPage() {
     repId: string;
   }>();
   const location = useLocation();
-  const fallbackStartTimestampRef = useRef<number>(Date.now());
+  const fallbackEndTimestampRef = useRef<number>(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(true);
   const [isLastRepInExercise, setIsLastRepInExercise] = useState(false);
+  const [isSessionComplete, setIsSessionComplete] = useState(false);
+  const [restTimeEntries, setRestTimeEntries] = useState<RestTimeEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const locationStateResult = workoutLocationStateSchema.safeParse(
@@ -32,8 +48,10 @@ export function WorkoutRestPage() {
   const locationState = locationStateResult.success
     ? locationStateResult.data
     : null;
-  const workoutStartTimestampMs =
-    locationState?.workoutStartTimestampMs ?? fallbackStartTimestampRef.current;
+  const workoutEndTimestampMs =
+    locationState?.workoutEndTimestampMs ??
+    locationState?.workoutStartTimestampMs ??
+    fallbackEndTimestampRef.current;
   const routeParamsResult = useMemo(
     () => workoutFinishRouteParamsSchema.safeParse({ programId, repId }),
     [programId, repId],
@@ -44,8 +62,27 @@ export function WorkoutRestPage() {
   const parsedRepId = routeParamsResult.success ? routeParamsResult.data.repId : null;
 
   useEffect(() => {
+    const hasLiveEntry = restTimeEntries.some(
+      (entry) => entry.liveStartTimestampMs !== null,
+    );
+    if (!hasLiveEntry) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [restTimeEntries]);
+
+  useEffect(() => {
     if (parsedProgramId === null || parsedRepId === null) {
       setIsLoading(false);
+      setRestTimeEntries([]);
+      setIsSessionComplete(false);
       setError(
         routeParamsResult.success
           ? "נתוני התרגול אינם תקינים."
@@ -58,6 +95,9 @@ export function WorkoutRestPage() {
       try {
         setIsLoading(true);
         setError(null);
+        setIsLastRepInExercise(false);
+        setIsSessionComplete(false);
+        setRestTimeEntries([]);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const [programsResponse, todayRepsResponse] = await Promise.all([
           apiFetch("/api/programs"),
@@ -106,28 +146,114 @@ export function WorkoutRestPage() {
         const currentSessionPracticeTimeKey = getPracticeTimeKey(
           new Date(currentRepRow.practiceTime),
         );
-        const completedCurrentExerciseReps = todayRepsResult.data.filter(
+        const currentSessionRows = todayRepsResult.data.filter(
+          (row) =>
+            getPracticeTimeKey(new Date(row.practiceTime)) === currentSessionPracticeTimeKey,
+        );
+        const completedCurrentExerciseRows = currentSessionRows.filter(
           (row) =>
             row.exerciseName === currentProgram.exerciseName &&
-            getPracticeTimeKey(new Date(row.practiceTime)) === currentSessionPracticeTimeKey &&
             row.repId !== null,
-        ).length;
-
-        setIsLastRepInExercise(
-          completedCurrentExerciseReps >= currentProgram.numberOfRepetions,
         );
+        const completedCurrentExerciseReps = completedCurrentExerciseRows.length;
+        const lastRepInExercise =
+          completedCurrentExerciseReps >= currentProgram.numberOfRepetions;
+
+        setIsLastRepInExercise(lastRepInExercise);
+        setIsSessionComplete(
+          lastRepInExercise && currentSessionRows.every((row) => row.repId !== null),
+        );
+
+        if (!lastRepInExercise) {
+          setRestTimeEntries([]);
+          return;
+        }
+
+        const completedRepIds = completedCurrentExerciseRows
+          .map((row) => row.repId)
+          .filter((repId): repId is number => repId !== null);
+
+        if (completedRepIds.length === 0) {
+          setRestTimeEntries([]);
+          return;
+        }
+
+        const repsResponse = await apiFetch(
+          `/api/reps?ids=${encodeURIComponent(completedRepIds.join(","))}`,
+        );
+        if (!repsResponse.ok) {
+          throw new Error("Failed to fetch rep summaries");
+        }
+
+        const repsResult = repsResponseSchema.safeParse(await repsResponse.json());
+        if (!repsResult.success) {
+          throw new Error(
+            getZodErrorMessage(repsResult.error, "Invalid reps response"),
+          );
+        }
+
+        const repById = new Map(repsResult.data.map((rep) => [rep.id, rep]));
+        const orderedCompletedReps = completedRepIds.flatMap((repId) => {
+          const rep = repById.get(repId);
+          return rep ? [rep] : [];
+        });
+
+        const nextRestTimeEntries = orderedCompletedReps.map((rep, index) => {
+          const label = `תרגיל ${index + 1}`;
+          const nextRep = orderedCompletedReps[index + 1] ?? null;
+          const repEndTimestampMs = rep.endTime ? Date.parse(rep.endTime) : Number.NaN;
+
+          if (!nextRep) {
+            return {
+              label,
+              elapsedSeconds: null,
+              liveStartTimestampMs: Number.isNaN(repEndTimestampMs)
+                ? workoutEndTimestampMs
+                : repEndTimestampMs,
+            };
+          }
+
+          const nextRepStartTimestampMs = Date.parse(nextRep.startTime);
+          if (
+            Number.isNaN(repEndTimestampMs) ||
+            Number.isNaN(nextRepStartTimestampMs)
+          ) {
+            return {
+              label,
+              elapsedSeconds: null,
+              liveStartTimestampMs: null,
+            };
+          }
+
+          return {
+            label,
+            elapsedSeconds: Math.max(
+              0,
+              Math.floor((nextRepStartTimestampMs - repEndTimestampMs) / 1000),
+            ),
+            liveStartTimestampMs: null,
+          };
+        });
+
+        setRestTimeEntries(nextRestTimeEntries);
       } catch (fetchError) {
         console.error("Error loading workout rest state:", fetchError);
+        setRestTimeEntries([]);
+        setIsSessionComplete(false);
         setError("לא ניתן לטעון את פרטי המנוחה כעת.");
       } finally {
         setIsLoading(false);
       }
     })();
-  }, [parsedProgramId, parsedRepId, routeParamsResult]);
+  }, [parsedProgramId, parsedRepId, routeParamsResult, workoutEndTimestampMs]);
 
   const primaryButtonLabel = isLastRepInExercise
-    ? "התאוששתי, נמשיך לתרגיל הבא!"
+    ? isSessionComplete
+      ? "התאוששתי"
+      : "התאוששתי, נמשיך לתרגיל הבא!"
     : "התאוששתי, נמשיך להשלמת התרגול";
+  const shouldShowRestTimeline =
+    isLastRepInExercise && !isLoading && !error && restTimeEntries.length > 0;
 
   return (
     <main
@@ -142,10 +268,35 @@ export function WorkoutRestPage() {
         )}
 
         <div className={isLastRepInExercise && !isLoading && !error ? "mt-4" : ""}>
-          <WorkoutStopwatch
-            startTimestampMs={workoutStartTimestampMs}
-            prefixText="הזמן שחלף מרגע סיום התרגול:"
-          />
+          {shouldShowRestTimeline ? (
+            <div className="space-y-3 text-center text-2xl font-semibold text-gray-900">
+              <p>הזמן שחלף מסיום התרגול:</p>
+              {restTimeEntries.map((entry) => {
+                const elapsedDisplay =
+                  entry.liveStartTimestampMs !== null
+                    ? formatElapsedDuration(
+                        Math.max(
+                          0,
+                          Math.floor((nowMs - entry.liveStartTimestampMs) / 1000),
+                        ),
+                      )
+                    : entry.elapsedSeconds !== null
+                      ? formatElapsedDuration(entry.elapsedSeconds)
+                      : "--:--";
+
+                return (
+                  <p key={entry.label}>
+                    {entry.label}: {elapsedDisplay} דקות
+                  </p>
+                );
+              })}
+            </div>
+          ) : (
+            <WorkoutStopwatch
+              startTimestampMs={workoutEndTimestampMs}
+              prefixText="הזמן שחלף מסיום התרגול:"
+            />
+          )}
         </div>
 
         <h2 className="mt-8 text-center text-4xl font-extrabold text-gray-900 sm:text-6xl">
@@ -169,7 +320,9 @@ export function WorkoutRestPage() {
               if (parsedProgramId === null) return;
               void navigate(
                 isLastRepInExercise
-                  ? "/select-exercise"
+                  ? isSessionComplete
+                    ? "/session-complete"
+                    : "/select-exercise"
                   : `/workout/${parsedProgramId}`,
               );
             }}
@@ -191,15 +344,17 @@ export function WorkoutRestPage() {
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => {
-              void navigate("/");
-            }}
-            className="w-full rounded-lg border-4 border-blue-500 bg-white px-6 py-6 text-2xl font-extrabold text-gray-900 transition hover:bg-blue-50 sm:text-4xl"
-          >
-            אין ביכולתי להמשיך כעת, אשלים את התרגול בהמשך
-          </button>
+          {!isSessionComplete && (
+            <button
+              type="button"
+              onClick={() => {
+                void navigate("/");
+              }}
+              className="w-full rounded-lg border-4 border-blue-500 bg-white px-6 py-6 text-2xl font-extrabold text-gray-900 transition hover:bg-blue-50 sm:text-4xl"
+            >
+              אין ביכולתי להמשיך כעת, אשלים את התרגול בהמשך
+            </button>
+          )}
         </div>
       </div>
     </main>

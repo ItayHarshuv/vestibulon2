@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
 import { db } from "./db/index.js";
@@ -9,16 +9,17 @@ import {
 } from "./today-reps-service.js";
 import {
   createRepBodySchema,
+  getRepsQuerySchema,
   getZodErrorMessage,
   updateRepBodySchema,
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleOptions(req, res, "POST,PATCH,OPTIONS")) {
+  if (handleOptions(req, res, "GET,POST,PATCH,OPTIONS")) {
     return;
   }
 
-  setApiHeaders(req, res, "POST,PATCH,OPTIONS");
+  setApiHeaders(req, res, "GET,POST,PATCH,OPTIONS");
 
   try {
     const authenticatedUser = await getAuthenticatedUser(req, res);
@@ -26,6 +27,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!authenticatedUserId) {
       res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    if (req.method === "GET") {
+      const queryResult = getRepsQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
+        return;
+      }
+
+      const rows = await db
+        .select({
+          id: reps.id,
+          startTime: reps.startTime,
+          endTime: reps.endTime,
+        })
+        .from(reps)
+        .where(
+          and(
+            eq(reps.userId, authenticatedUserId),
+            inArray(reps.id, queryResult.data.ids),
+          ),
+        )
+        .orderBy(asc(reps.startTime), asc(reps.id));
+
+      res.status(200).json(rows);
       return;
     }
 
