@@ -40,6 +40,7 @@ export function WorkoutPage() {
   const hasPausedInRepRef = useRef(false);
   const hasNavigatedToFinishRef = useRef(false);
   const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
+  const initializedProgramIdRef = useRef<number | null>(null);
 
   const routeParamsResult = useMemo(
     () => programRouteParamsSchema.safeParse({ programId }),
@@ -91,7 +92,13 @@ export function WorkoutPage() {
   }, [isLoading, parsedProgramId, user]);
 
   useEffect(() => {
-    if (!program) return;
+    if (!program) {
+      initializedProgramIdRef.current = null;
+      return;
+    }
+    if (initializedProgramIdRef.current === program.id) return;
+
+    initializedProgramIdRef.current = program.id;
 
     setRemainingSeconds(program.numberOfSeconds);
     setCurrentBpm(program.metronomeBpmTemp ?? program.metronomeBpm);
