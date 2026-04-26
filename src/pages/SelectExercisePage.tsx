@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { apiFetch } from "~/lib/api";
 import { getZodErrorMessage, todayRepsResponseSchema } from "~/lib/validation";
@@ -25,14 +25,31 @@ function getPracticeTimeKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function isPracticeTimeKey(value: string | null): value is string {
+  return value !== null && /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/.test(value);
+}
+
+function formatPracticeTime(date: Date) {
+  return new Intl.DateTimeFormat("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
 export function SelectExercisePage() {
   const { isLoading, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [todayReps, setTodayReps] = useState<TodayRepRow[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestedPracticeTimeKey = useMemo(() => {
+    const practiceTimeKey = searchParams.get("practiceTimeKey");
+    return isPracticeTimeKey(practiceTimeKey) ? practiceTimeKey : null;
+  }, [searchParams]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -117,14 +134,29 @@ export function SelectExercisePage() {
     return nextPendingRow ? getPracticeTimeKey(nextPendingRow.practiceDate) : null;
   }, [todayReps]);
 
+  const selectedSessionPracticeTimeKey = requestedPracticeTimeKey ?? currentSessionPracticeTimeKey;
+
+  const selectedSessionPracticeDate = useMemo(() => {
+    if (selectedSessionPracticeTimeKey === null) {
+      return null;
+    }
+
+    const matchingRow = todayReps.find(
+      (row) =>
+        getPracticeTimeKey(new Date(row.practiceTime)) === selectedSessionPracticeTimeKey,
+    );
+
+    return matchingRow ? new Date(matchingRow.practiceTime) : null;
+  }, [selectedSessionPracticeTimeKey, todayReps]);
+
   const completedSessionRepsByExercise = useMemo(() => {
-    if (currentSessionPracticeTimeKey === null) {
+    if (selectedSessionPracticeTimeKey === null) {
       return {};
     }
 
     return todayReps.reduce<Record<string, number>>((acc, row) => {
       if (
-        getPracticeTimeKey(new Date(row.practiceTime)) !== currentSessionPracticeTimeKey ||
+        getPracticeTimeKey(new Date(row.practiceTime)) !== selectedSessionPracticeTimeKey ||
         row.repId === null
       ) {
         return acc;
@@ -133,12 +165,24 @@ export function SelectExercisePage() {
       acc[row.exerciseName] = (acc[row.exerciseName] ?? 0) + 1;
       return acc;
     }, {});
-  }, [currentSessionPracticeTimeKey, todayReps]);
+  }, [selectedSessionPracticeTimeKey, todayReps]);
 
   const hasPendingTodayReps = useMemo(
     () => todayReps.some((row) => row.repId === null),
     [todayReps],
   );
+
+  const hasPendingSelectedSessionReps = useMemo(() => {
+    if (selectedSessionPracticeTimeKey === null) {
+      return false;
+    }
+
+    return todayReps.some(
+      (row) =>
+        getPracticeTimeKey(new Date(row.practiceTime)) === selectedSessionPracticeTimeKey &&
+        row.repId === null,
+    );
+  }, [selectedSessionPracticeTimeKey, todayReps]);
 
   return (
     <main
@@ -148,6 +192,14 @@ export function SelectExercisePage() {
       <h1 className="text-center text-3xl font-bold text-gray-900">
         תרגילים לביצוע - אנא בחר תרגיל
       </h1>
+
+      {selectedSessionPracticeDate && (
+        <p className="mt-4 text-center text-lg font-semibold text-gray-700">
+          {requestedPracticeTimeKey === null
+            ? `התרגול הנוכחי לשעה ${formatPracticeTime(selectedSessionPracticeDate)}`
+            : `השלמת תרגול קודם מהשעה ${formatPracticeTime(selectedSessionPracticeDate)}`}
+        </p>
+      )}
 
       {loading && <p className="mt-8 text-center text-gray-600">טוען תרגילים...</p>}
 
@@ -163,12 +215,25 @@ export function SelectExercisePage() {
         </p>
       )}
 
-      {!loading && !error && programs.length > 0 && (
+      {!loading &&
+        !error &&
+        programs.length > 0 &&
+        selectedSessionPracticeTimeKey !== null &&
+        !hasPendingSelectedSessionReps && (
+          <p className="mt-8 text-center text-gray-600">
+            כל התרגילים בתרגול זה כבר הושלמו.
+          </p>
+        )}
+
+      {!loading &&
+        !error &&
+        programs.length > 0 &&
+        (requestedPracticeTimeKey === null || hasPendingSelectedSessionReps) && (
         <div className="mt-8 space-y-6">
           {programs.map((program) => {
             const total = program.numberOfRepetions;
             const completed =
-              currentSessionPracticeTimeKey === null
+              selectedSessionPracticeTimeKey === null
                 ? hasPendingTodayReps
                   ? 0
                   : total
@@ -227,7 +292,11 @@ export function SelectExercisePage() {
           disabled={!selectedProgram}
           onClick={() => {
             if (!selectedProgram) return;
-            void navigate(`/exercise-description/${selectedProgram.id}`);
+            const nextUrl =
+              requestedPracticeTimeKey === null
+                ? `/exercise-description/${selectedProgram.id}`
+                : `/exercise-description/${selectedProgram.id}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+            void navigate(nextUrl);
           }}
           className="rounded-lg bg-emerald-300 px-10 py-4 text-4xl font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >

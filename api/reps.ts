@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const { programId, timeZone } = bodyResult.data;
+      const { practiceTimeKey, programId, timeZone } = bodyResult.data;
       const matchingPrograms = await db
         .select({
           id: programs.id,
@@ -107,12 +107,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      await assignRepToTodayRepSlot(
+      const assigned = await assignRepToTodayRepSlot(
         authenticatedUserId,
         program.exerciseName,
         createdRep.id,
         timeZone,
+        practiceTimeKey,
       );
+
+      if (!assigned) {
+        await db.delete(reps).where(eq(reps.id, createdRep.id));
+        res.status(409).json({ error: "No available today rep slot for this exercise" });
+        return;
+      }
 
       res.status(201).json(createdRep);
       return;

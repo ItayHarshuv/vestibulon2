@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { WorkoutStopwatch } from "~/components/WorkoutStopwatch";
 import { apiFetch } from "~/lib/api";
 import {
@@ -29,6 +29,7 @@ interface RestTimeEntry {
 
 export function WorkoutRestPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { programId, repId } = useParams<{
     programId: string;
     repId: string;
@@ -60,6 +61,11 @@ export function WorkoutRestPage() {
     ? routeParamsResult.data.programId
     : null;
   const parsedRepId = routeParamsResult.success ? routeParamsResult.data.repId : null;
+  const requestedPracticeTimeKey = searchParams.get("practiceTimeKey");
+  const selectExerciseUrl =
+    requestedPracticeTimeKey === null
+      ? "/select-exercise"
+      : `/select-exercise?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
 
   useEffect(() => {
     const hasLiveEntry = restTimeEntries.some(
@@ -322,8 +328,10 @@ export function WorkoutRestPage() {
                 isLastRepInExercise
                   ? isSessionComplete
                     ? "/session-complete"
-                    : "/select-exercise"
-                  : `/workout/${parsedProgramId}`,
+                    : selectExerciseUrl
+                  : requestedPracticeTimeKey === null
+                    ? `/workout/${parsedProgramId}`
+                    : `/workout/${parsedProgramId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`,
               );
             }}
             disabled={isLoading || parsedProgramId === null || error !== null}
@@ -336,7 +344,7 @@ export function WorkoutRestPage() {
             <button
               type="button"
               onClick={() => {
-                void navigate("/select-exercise");
+                void navigate(selectExerciseUrl);
               }}
               className="w-full rounded-lg border-4 border-blue-500 bg-white px-6 py-6 text-2xl font-extrabold text-gray-900 transition hover:bg-blue-50 sm:text-4xl"
             >

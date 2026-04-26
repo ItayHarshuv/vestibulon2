@@ -12,6 +12,13 @@ type TodayRepRow = {
   repId: number | null;
 };
 
+type SessionSummary = {
+  practiceTimeKey: string;
+  practiceDate: Date;
+  completedCount: number;
+  totalCount: number;
+};
+
 function formatPracticeTime(date: Date) {
   return new Intl.DateTimeFormat("he-IL", {
     hour: "2-digit",
@@ -157,6 +164,43 @@ export function HomePage() {
     };
   }, [isLoadingTodayReps, nowMs, todayReps, todayRepsError]);
 
+  const incompletePreviousSessions = useMemo(() => {
+    if (isLoadingTodayReps || todayRepsError) {
+      return [];
+    }
+
+    const now = new Date(nowMs);
+    const sessions = new Map<string, SessionSummary>();
+
+    for (const row of todayReps) {
+      const practiceDate = new Date(row.practiceTime);
+      if (practiceDate > now) {
+        continue;
+      }
+
+      const practiceTimeKey = getPracticeTimeKey(practiceDate);
+      const existingSession = sessions.get(practiceTimeKey);
+      if (existingSession) {
+        existingSession.totalCount += 1;
+        if (row.repId !== null) {
+          existingSession.completedCount += 1;
+        }
+        continue;
+      }
+
+      sessions.set(practiceTimeKey, {
+        practiceTimeKey,
+        practiceDate,
+        completedCount: row.repId === null ? 0 : 1,
+        totalCount: 1,
+      });
+    }
+
+    return [...sessions.values()].filter(
+      (session) => session.completedCount < session.totalCount,
+    );
+  }, [isLoadingTodayReps, nowMs, todayReps, todayRepsError]);
+
   async function handleConfirmGender() {
     if (!user || !selectedGender) return;
     try {
@@ -208,8 +252,21 @@ export function HomePage() {
         )}
       </p>
 
+      {practiceStatus.kind === "complete" && incompletePreviousSessions.length > 0 && (
+        <p className="mt-3 text-center text-lg font-semibold text-gray-700">
+          ניתן להשלים תרגילים שלא נעשו בכפתור ״השלמת תרגולים קודמים״
+        </p>
+      )}
+
       {/* Button cards */}
       <div className="mt-8 flex w-full max-w-lg flex-col gap-5">
+        {practiceStatus.kind === "complete" && incompletePreviousSessions.length > 0 && (
+          <HomeActionButton
+            to="/select-previous-session"
+            label="השלמת תרגולים קודמים"
+            iconSrc="/assets/icons/rewind%20copy.svg"
+          />
+        )}
         <HomeActionButton
           to="/schedule"
           label="קביעת זמני תרגול"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import {
   applyGenderToText,
@@ -18,9 +18,11 @@ export function ExerciseDescriptionPage() {
   const { isLoading, user } = useAuth();
   const { programId } = useParams<{ programId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const practiceTimeKey = searchParams.get("practiceTimeKey");
 
   const routeParamsResult = useMemo(
     () => programRouteParamsSchema.safeParse({ programId }),
@@ -138,7 +140,11 @@ export function ExerciseDescriptionPage() {
         <button
           type="button"
           onClick={() => {
-            void navigate(`/workout/${program.id}`);
+            const nextUrl =
+              practiceTimeKey === null
+                ? `/workout/${program.id}`
+                : `/workout/${program.id}?practiceTimeKey=${encodeURIComponent(practiceTimeKey)}`;
+            void navigate(nextUrl);
           }}
           className="rounded-lg bg-green-500 px-12 py-4 text-4xl font-bold text-white transition hover:bg-green-600"
         >

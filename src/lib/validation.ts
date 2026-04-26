@@ -145,11 +145,19 @@ export const apiProgramSchema = z.object({
 
 export const programsResponseSchema = z.array(apiProgramSchema);
 
+const practiceTimeKeySchema = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/,
+    "practiceTimeKey must match YYYY-MM-DD-HH-mm",
+  );
+
 export const createRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
     programId: integerField("programId is required"),
     timeZone: requiredTrimmedString("timeZone is required"),
+    practiceTimeKey: practiceTimeKeySchema.optional(),
   }),
 );
 

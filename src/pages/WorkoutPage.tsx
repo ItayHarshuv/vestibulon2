@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
@@ -19,10 +19,15 @@ function getPracticeTimeKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function isPracticeTimeKey(value: string | null): value is string {
+  return value !== null && /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/.test(value);
+}
+
 export function WorkoutPage() {
   const { isLoading, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { programId } = useParams<{ programId: string }>();
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +54,10 @@ export function WorkoutPage() {
   const parsedProgramId = routeParamsResult.success
     ? routeParamsResult.data.programId
     : null;
+  const requestedPracticeTimeKey = useMemo(() => {
+    const practiceTimeKey = searchParams.get("practiceTimeKey");
+    return isPracticeTimeKey(practiceTimeKey) ? practiceTimeKey : null;
+  }, [searchParams]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -172,8 +181,10 @@ export function WorkoutPage() {
             ? getPracticeTimeKey(nextPendingRow.practiceDate)
             : null;
         })();
+        const selectedSessionPracticeTimeKey =
+          requestedPracticeTimeKey ?? currentSessionPracticeTimeKey;
 
-        if (currentSessionPracticeTimeKey === null) {
+        if (selectedSessionPracticeTimeKey === null) {
           setCurrentRepNumber(1);
           return;
         }
@@ -182,7 +193,7 @@ export function WorkoutPage() {
           (row) =>
             row.exerciseName === program.exerciseName &&
             getPracticeTimeKey(new Date(row.practiceTime)) ===
-              currentSessionPracticeTimeKey &&
+              selectedSessionPracticeTimeKey &&
             row.repId !== null,
         ).length;
 
@@ -194,7 +205,7 @@ export function WorkoutPage() {
         setCurrentRepNumber(1);
       }
     })();
-  }, [isLoading, program, user]);
+  }, [isLoading, program, requestedPracticeTimeKey, user]);
 
   useEffect(() => {
     if (!program || isPaused || remainingSeconds <= 0) return;
@@ -225,6 +236,7 @@ export function WorkoutPage() {
           method: "POST",
           body: JSON.stringify({
             programId: program.id,
+            practiceTimeKey: requestedPracticeTimeKey ?? undefined,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
         });
@@ -256,7 +268,7 @@ export function WorkoutPage() {
         console.error("Error creating rep record:", err);
       }
     })();
-  }, [isLoading, location.key, program, user]);
+  }, [isLoading, location.key, program, requestedPracticeTimeKey, user]);
 
   useEffect(() => {
     if (
@@ -297,7 +309,11 @@ export function WorkoutPage() {
         const completedWorkoutEndTimestampMs =
           (workoutStartTimestampMs ?? fallbackWorkoutStartTimestampRef.current) +
           durationSeconds * 1000;
-        void navigate(`/workout-finish/${program.id}/${activeRepId}`, {
+        const nextUrl =
+          requestedPracticeTimeKey === null
+            ? `/workout-finish/${program.id}/${activeRepId}`
+            : `/workout-finish/${program.id}/${activeRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+        void navigate(nextUrl, {
           state: {
             workoutEndTimestampMs: completedWorkoutEndTimestampMs,
             workoutStartTimestampMs:
@@ -312,6 +328,7 @@ export function WorkoutPage() {
     currentBpm,
     navigate,
     program,
+    requestedPracticeTimeKey,
     remainingSeconds,
     workoutStartTimestampMs,
   ]);

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { WorkoutStopwatch } from "~/components/WorkoutStopwatch";
 import { apiFetch } from "~/lib/api";
 import {
@@ -73,6 +73,7 @@ function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
 
 export function WorkoutFinishPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { programId, repId } = useParams<{
     programId: string;
     repId: string;
@@ -108,6 +109,7 @@ export function WorkoutFinishPage() {
   const parsedRepId = routeParamsResult.success
     ? routeParamsResult.data.repId
     : null;
+  const requestedPracticeTimeKey = searchParams.get("practiceTimeKey");
 
   const canContinue = useMemo(
     () =>
@@ -150,7 +152,11 @@ export function WorkoutFinishPage() {
         throw new Error("Failed to update rep record");
       }
 
-      await navigate(`/workout-rest/${parsedProgramId}/${parsedRepId}`, {
+      const nextUrl =
+        requestedPracticeTimeKey === null
+          ? `/workout-rest/${parsedProgramId}/${parsedRepId}`
+          : `/workout-rest/${parsedProgramId}/${parsedRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+      await navigate(nextUrl, {
         state: {
           workoutEndTimestampMs,
         },

@@ -304,9 +304,26 @@ export async function assignRepToTodayRepSlot(
   exerciseName: string,
   repId: number,
   timeZone: string,
+  practiceTimeKey?: string,
 ) {
   const now = new Date();
   const scheduledRows = await getTodayRepRowsForUser(userId, timeZone, exerciseName);
+  if (practiceTimeKey) {
+    const targetedRow =
+      scheduledRows.find(
+        (candidateRow) =>
+          getPracticeTimeKeyInTimeZone(candidateRow.practiceTime, timeZone) ===
+            practiceTimeKey && candidateRow.repId === null,
+      ) ?? null;
+
+    if (!targetedRow) {
+      return false;
+    }
+
+    await db.update(todayReps).set({ repId }).where(eq(todayReps.id, targetedRow.id));
+    return true;
+  }
+
   const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceTime <= now);
   const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
   const latestDuePracticeTimeKey = latestScheduledRow
