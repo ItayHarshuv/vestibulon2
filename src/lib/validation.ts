@@ -97,6 +97,16 @@ export const authSessionResponseSchema = z.object({
   user: authUserSchema.nullable(),
 });
 
+export const clinicianPatientSchema = z.object({
+  id: requiredTrimmedString("Missing id"),
+  username: requiredTrimmedString("Missing username"),
+  email: z.string().email("Missing email"),
+});
+
+export const clinicianPatientsResponseSchema = z.object({
+  patients: z.array(clinicianPatientSchema),
+});
+
 export const signInRequestSchema = signInFormSchema;
 export const signUpRequestSchema = signUpFormSchema;
 
@@ -348,6 +358,7 @@ export const repsResponseSchema = z.array(apiRepSummarySchema);
 
 export type ApiProgram = z.infer<typeof apiProgramSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;
+export type ClinicianPatient = z.infer<typeof clinicianPatientSchema>;
 export type SignInForm = z.infer<typeof signInFormSchema>;
 export type SignUpForm = z.infer<typeof signUpFormSchema>;
 export type UpdateProgramBody = z.infer<typeof updateProgramBodySchema>;

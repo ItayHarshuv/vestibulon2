@@ -5,6 +5,7 @@ import { Navbar } from "./components/Navbar";
 import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
 import { SignUpPage } from "./pages/SignUpPage";
+import { ClinicianNewPatientPage } from "./pages/ClinicianNewPatientPage";
 import { ClinicianFeaturePlaceholderPage } from "./pages/ClinicianFeaturePlaceholderPage";
 import { ClinicianMenuPage } from "./pages/ClinicianMenuPage";
 import { CreditsPage } from "./pages/CreditsPage";
@@ -97,7 +98,7 @@ export function App() {
             path="/clinician-menu/new-patient"
             element={
               <ClinicianOnly>
-                <ClinicianFeaturePlaceholderPage title="הגדרת מטופל/ת חדש/ה" />
+                <ClinicianNewPatientPage />
               </ClinicianOnly>
             }
           />

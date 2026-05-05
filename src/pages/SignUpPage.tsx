@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { apiFetch } from "~/lib/api";
 import {
@@ -123,15 +123,6 @@ export function SignUpPage() {
         </button>
       </form>
 
-      <p className="mt-8 text-sm text-gray-600">
-        יש לך כבר חשבון?{" "}
-        <Link
-          to="/sign-in"
-          className="font-semibold text-blue-600 hover:text-blue-800"
-        >
-          התחברות
-        </Link>
-      </p>
     </main>
   );
 }

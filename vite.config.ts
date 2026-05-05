@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import clinicianPatientsHandler from "./api/clinician/patients";
 import sessionHandler from "./api/auth/session";
 import signInHandler from "./api/auth/sign-in";
 import signOutHandler from "./api/auth/sign-out";
@@ -27,6 +28,7 @@ export default defineConfig({
       name: "api-plugin",
       configureServer(server) {
         const apiRoutes: Record<string, ApiHandler> = {
+          "/clinician/patients": clinicianPatientsHandler,
           "/auth/session": sessionHandler,
           "/auth/sign-in": signInHandler,
           "/auth/sign-out": signOutHandler,
