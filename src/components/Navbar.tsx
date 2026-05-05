@@ -1,12 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, matchPath, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 
+function getPageTitle(pathname: string) {
+  if (matchPath("/regular-menu", pathname)) return "תפריט";
+  if (matchPath("/schedule", pathname)) return "קביעת זמני תרגול";
+  if (matchPath("/select-exercise", pathname)) return "בחירת תרגיל";
+  if (matchPath("/select-previous-session", pathname)) return "השלמת תרגולים קודמים";
+  if (matchPath("/exercise-description/:programId", pathname)) return "תיאור התרגיל";
+  if (matchPath("/workout/:programId", pathname)) return "תרגול";
+  if (matchPath("/workout-finish/:programId/:repId", pathname)) return "סיום תרגול";
+  if (matchPath("/workout-rest/:programId/:repId", pathname)) return "מנוחה";
+  if (matchPath("/session-complete", pathname)) return "התרגול הושלם";
+  if (matchPath("/sign-in", pathname)) return "התחברות";
+  if (matchPath("/sign-up", pathname)) return "הרשמה";
+
+  return "";
+}
+
 export function Navbar() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const [displayedPoints, setDisplayedPoints] = useState(user?.points ?? 0);
   const displayedPointsRef = useRef(displayedPoints);
+  const isHomePage = location.pathname === "/";
+  const pageTitle = getPageTitle(location.pathname);
+  const shouldHideBackButton =
+    matchPath("/workout/:programId", location.pathname) !== null ||
+    matchPath("/workout-finish/:programId/:repId", location.pathname) !== null ||
+    matchPath("/workout-rest/:programId/:repId", location.pathname) !== null ||
+    matchPath("/session-complete", location.pathname) !== null;
 
   useEffect(() => {
     displayedPointsRef.current = displayedPoints;
@@ -63,34 +87,40 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center justify-center gap-3">
-            <Link
-              to="/regular-menu"
-              aria-label="Open regular menu"
-              className="rounded-md p-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-6 w-6"
-                aria-hidden="true"
-              >
-                <line x1="4" y1="7" x2="20" y2="7" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="17" x2="20" y2="17" />
-              </svg>
-            </Link>
-            <Link to="/" className="text-xl font-bold text-gray-900">
-              Vestibulon
-            </Link>
+            {isHomePage ? (
+              <>
+                <Link
+                  to="/regular-menu"
+                  aria-label="Open regular menu"
+                  className="rounded-md p-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-6 w-6"
+                    aria-hidden="true"
+                  >
+                    <line x1="4" y1="7" x2="20" y2="7" />
+                    <line x1="4" y1="12" x2="20" y2="12" />
+                    <line x1="4" y1="17" x2="20" y2="17" />
+                  </svg>
+                </Link>
+                <Link to="/" className="text-xl font-bold text-gray-900">
+                  Vestibulon
+                </Link>
+              </>
+            ) : (
+              <span aria-hidden="true" />
+            )}
           </div>
 
           <div className="flex items-center justify-self-end gap-4">
-            {!user ? (
+            {!user && isHomePage ? (
               <Link
                 to="/sign-in"
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
@@ -99,19 +129,56 @@ export function Navbar() {
               </Link>
             ) : (
               <>
-                <span className="text-sm font-medium text-gray-700">{user.username}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void (async () => {
-                      await signOut();
-                      void navigate("/sign-in");
-                    })();
-                  }}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
-                >
-                  התנתקות
-                </button>
+                {user && isHomePage ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void (async () => {
+                        await signOut();
+                        void navigate("/sign-in");
+                      })();
+                    }}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
+                  >
+                    התנתקות
+                  </button>
+                ) : (
+                  <>
+                    <span className="text-lg font-bold text-gray-900 sm:text-xl">
+                      {pageTitle}
+                    </span>
+                    {!shouldHideBackButton && (
+                      <button
+                        type="button"
+                        aria-label="Go back"
+                        onClick={() => {
+                          if (window.history.length > 1) {
+                            navigate(-1);
+                            return;
+                          }
+
+                          void navigate("/");
+                        }}
+                        className="rounded-md p-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-8 w-8"
+                          aria-hidden="true"
+                        >
+                          <path d="M5 12h14" />
+                          <path d="M13 6l6 6-6 6" />
+                        </svg>
+                      </button>
+                    )}
+                  </>
+                )}
               </>
             )}
           </div>
