@@ -4,6 +4,18 @@ import { useAuth } from "~/auth/AuthProvider";
 
 function getPageTitle(pathname: string) {
   if (matchPath("/regular-menu", pathname)) return "תפריט";
+  if (matchPath("/credits", pathname)) return "אודות";
+  if (matchPath("/clinician-menu", pathname)) return "תפריט קלינאים";
+  if (matchPath("/clinician-menu/new-patient", pathname)) return "הגדרת מטופל/ת חדש/ה";
+  if (matchPath("/clinician-menu/treatment-plan", pathname)) {
+    return "יצירת / שינוי תכנית טיפול למטופל/ת";
+  }
+  if (matchPath("/clinician-menu/patient-practice-data", pathname)) {
+    return "צפייה בנתוני תרגול של מטופל/ת";
+  }
+  if (matchPath("/clinician-menu/messages", pathname)) {
+    return "שליחת הודעות למטופל/ת";
+  }
   if (matchPath("/schedule", pathname)) return "קביעת זמני תרגול";
   if (matchPath("/select-exercise", pathname)) return "בחירת תרגיל";
   if (matchPath("/select-previous-session", pathname)) return "השלמת תרגולים קודמים";
@@ -153,7 +165,7 @@ export function Navbar() {
                         aria-label="Go back"
                         onClick={() => {
                           if (window.history.length > 1) {
-                            navigate(-1);
+                            void navigate(-1);
                             return;
                           }
 

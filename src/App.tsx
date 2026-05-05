@@ -5,6 +5,9 @@ import { Navbar } from "./components/Navbar";
 import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
 import { SignUpPage } from "./pages/SignUpPage";
+import { ClinicianFeaturePlaceholderPage } from "./pages/ClinicianFeaturePlaceholderPage";
+import { ClinicianMenuPage } from "./pages/ClinicianMenuPage";
+import { CreditsPage } from "./pages/CreditsPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { SelectExercisePage } from "./pages/SelectExercisePage";
@@ -51,6 +54,28 @@ function GuestOnly({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function ClinicianOnly({ children }: { children: ReactNode }) {
+  const { isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white text-lg text-gray-700">
+        טוען...
+      </main>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/sign-in" replace />;
+  }
+
+  if (user.role !== "clinician") {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export function App() {
   return (
     <AuthProvider>
@@ -59,6 +84,47 @@ export function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/regular-menu" element={<RegularMenuPage />} />
+          <Route path="/credits" element={<CreditsPage />} />
+          <Route
+            path="/clinician-menu"
+            element={
+              <ClinicianOnly>
+                <ClinicianMenuPage />
+              </ClinicianOnly>
+            }
+          />
+          <Route
+            path="/clinician-menu/new-patient"
+            element={
+              <ClinicianOnly>
+                <ClinicianFeaturePlaceholderPage title="הגדרת מטופל/ת חדש/ה" />
+              </ClinicianOnly>
+            }
+          />
+          <Route
+            path="/clinician-menu/treatment-plan"
+            element={
+              <ClinicianOnly>
+                <ClinicianFeaturePlaceholderPage title="יצירת / שינוי תכנית טיפול למטופל/ת" />
+              </ClinicianOnly>
+            }
+          />
+          <Route
+            path="/clinician-menu/patient-practice-data"
+            element={
+              <ClinicianOnly>
+                <ClinicianFeaturePlaceholderPage title="צפייה בנתוני תרגול של מטופל/ת" />
+              </ClinicianOnly>
+            }
+          />
+          <Route
+            path="/clinician-menu/messages"
+            element={
+              <ClinicianOnly>
+                <ClinicianFeaturePlaceholderPage title="שליחת הודעות למטופל/ת" />
+              </ClinicianOnly>
+            }
+          />
           <Route
             path="/schedule"
             element={
