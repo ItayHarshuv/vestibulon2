@@ -11,6 +11,7 @@ import {
   programRouteParamsSchema,
   programsResponseSchema,
   todayRepsResponseSchema,
+  updateRepResponseSchema,
 } from "~/lib/validation";
 
 const startedWorkoutKeys = new Set<string>();
@@ -24,7 +25,7 @@ function isPracticeTimeKey(value: string | null): value is string {
 }
 
 export function WorkoutPage() {
-  const { isLoading, user } = useAuth();
+  const { isLoading, setUserPoints, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -301,6 +302,17 @@ export function WorkoutPage() {
 
         if (!response.ok) {
           throw new Error("Failed to update rep record");
+        }
+
+        const updateResult = updateRepResponseSchema.safeParse(await response.json());
+        if (!updateResult.success) {
+          throw new Error(
+            getZodErrorMessage(updateResult.error, "Invalid rep update response"),
+          );
+        }
+
+        if (updateResult.data.totalPoints !== null && updateResult.data.totalPoints !== undefined) {
+          setUserPoints(updateResult.data.totalPoints);
         }
       } catch (err) {
         console.error("Error updating rep record:", err);

@@ -77,10 +77,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: profile.workosUserId,
         username: profile.username,
         email: profile.email,
+        role: profile.role === "clinician" ? "clinician" : "patient",
+        clinicianUserId: profile.clinicianUserId,
         gender:
           profile.gender === "male" || profile.gender === "female"
             ? profile.gender
             : null,
+        points: profile.points,
       },
     });
   } catch (error) {

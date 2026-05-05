@@ -1,6 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
+import {
+  getAccessibleUserProfile,
+  getAuthenticatedUser,
+  handleOptions,
+  setApiHeaders,
+} from "./auth.js";
 import { db } from "./db/index.js";
 import { programs } from "./db/schema.js";
 import {
@@ -31,6 +36,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const { programId, metronomeBpmTemp } = bodyResult.data;
+      const programRows = await db
+        .select({
+          id: programs.id,
+          userId: programs.userId,
+        })
+        .from(programs)
+        .where(eq(programs.id, programId))
+        .limit(1);
+      const program = programRows[0];
+      if (!program) {
+        res.status(404).json({ error: "Program not found" });
+        return;
+      }
+
+      const accessibleProfile = await getAccessibleUserProfile(
+        authenticatedUser,
+        program.userId,
+      );
+      if (!accessibleProfile) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
 
       const updated = await db
         .update(programs)
@@ -38,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .where(
           and(
             eq(programs.id, programId),
-            eq(programs.userId, authenticatedUser.id),
+            eq(programs.userId, program.userId),
           ),
         )
         .returning({
@@ -70,6 +97,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    const targetUserId = queryResult.data.userId ?? authenticatedUser.id;
+    const accessibleProfile = await getAccessibleUserProfile(
+      authenticatedUser,
+      targetUserId,
+    );
+    if (!accessibleProfile) {
+      res.status(targetUserId === authenticatedUser.id ? 404 : 403).json({
+        error:
+          targetUserId === authenticatedUser.id ? "User profile not found" : "Forbidden",
+      });
+      return;
+    }
+
     const userPrograms = await db
       .select({
         id: programs.id,
@@ -84,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .from(programs)
       .where(
-        and(eq(programs.userId, authenticatedUser.id), eq(programs.active, true)),
+        and(eq(programs.userId, targetUserId), eq(programs.active, true)),
       )
       .orderBy(programs.createdAt);
 

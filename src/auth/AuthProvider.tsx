@@ -17,6 +17,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   isLoading: boolean;
   refreshSession: () => Promise<AuthUser | null>;
+  setUserPoints: (points: number) => void;
   signOut: () => Promise<void>;
 };
 
@@ -53,6 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(null);
+  }
+
+  function setUserPoints(points: number) {
+    setUser((currentUser) =>
+      currentUser
+        ? {
+            ...currentUser,
+            points,
+          }
+        : currentUser,
+    );
   }
 
   useEffect(() => {
@@ -106,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         refreshSession,
+        setUserPoints,
         signOut,
       }}
     >

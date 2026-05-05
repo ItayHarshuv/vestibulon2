@@ -11,6 +11,8 @@ import type { Gender } from "../src/data/content.js";
 const DEFAULT_SESSION_COOKIE_NAME = "vestibulon_session";
 const ACCESS_CONTROL_HEADERS = "Content-Type, Authorization, X-Requested-With";
 const DEFAULT_ALLOWED_CROSS_ORIGINS = ["capacitor://localhost"];
+export const USER_ROLES = ["clinician", "patient"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 function getRequiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -235,17 +237,52 @@ export type AuthenticatedUser = {
   id: string;
   username: string;
   email: string;
+  role: UserRole;
+  clinicianUserId: string | null;
   gender: Gender | null;
+  points: number;
   sessionId: string;
 };
 
-async function getUserProfileByWorkosUserId(workosUserId: string) {
+function normalizeRole(role: string | null | undefined): UserRole {
+  return role === "clinician" ? "clinician" : "patient";
+}
+
+function normalizeGender(gender: string | null | undefined): Gender | null {
+  return gender === "male" || gender === "female" ? gender : null;
+}
+
+function toAuthenticatedUser(
+  profile: Awaited<ReturnType<typeof getUserProfileByWorkosUserId>>,
+  sessionId: string,
+): AuthenticatedUser | null {
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    id: profile.workosUserId,
+    username: profile.username,
+    email: profile.email,
+    role: normalizeRole(profile.role),
+    clinicianUserId: profile.clinicianUserId,
+    gender: normalizeGender(profile.gender),
+    points: profile.points,
+    sessionId,
+  };
+}
+
+export async function getUserProfileByWorkosUserId(workosUserId: string) {
   const rows = await db
     .select({
       workosUserId: userProfiles.workosUserId,
       username: userProfiles.username,
       email: userProfiles.email,
+      role: userProfiles.role,
+      clinicianUserId: userProfiles.clinicianUserId,
       gender: userProfiles.gender,
+      points: userProfiles.points,
+      numberOfSessions: userProfiles.numberOfSessions,
     })
     .from(userProfiles)
     .where(eq(userProfiles.workosUserId, workosUserId))
@@ -260,7 +297,11 @@ export async function getUserProfileByUsername(username: string) {
       workosUserId: userProfiles.workosUserId,
       username: userProfiles.username,
       email: userProfiles.email,
+      role: userProfiles.role,
+      clinicianUserId: userProfiles.clinicianUserId,
       gender: userProfiles.gender,
+      points: userProfiles.points,
+      numberOfSessions: userProfiles.numberOfSessions,
     })
     .from(userProfiles)
     .where(eq(userProfiles.username, username))
@@ -283,13 +324,44 @@ export async function getUserProfileByIdentifier(identifier: string) {
       workosUserId: userProfiles.workosUserId,
       username: userProfiles.username,
       email: userProfiles.email,
+      role: userProfiles.role,
+      clinicianUserId: userProfiles.clinicianUserId,
       gender: userProfiles.gender,
+      points: userProfiles.points,
+      numberOfSessions: userProfiles.numberOfSessions,
     })
     .from(userProfiles)
     .where(filters.length === 1 ? filters[0]! : or(...filters))
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+export async function getAccessibleUserProfile(
+  authenticatedUser: AuthenticatedUser,
+  targetUserId: string,
+) {
+  const profile = await getUserProfileByWorkosUserId(targetUserId);
+  if (!profile) {
+    return null;
+  }
+
+  if (authenticatedUser.id === targetUserId) {
+    return profile;
+  }
+
+  if (authenticatedUser.role !== "clinician") {
+    return null;
+  }
+
+  if (
+    normalizeRole(profile.role) !== "patient" ||
+    profile.clinicianUserId !== authenticatedUser.id
+  ) {
+    return null;
+  }
+
+  return profile;
 }
 
 export function getWorkOS() {
@@ -317,18 +389,7 @@ export async function getAuthenticatedUser(
     const authenticated = await session.authenticate();
     if (authenticated.authenticated) {
       const profile = await getUserProfileByWorkosUserId(authenticated.user.id);
-      if (!profile) return null;
-
-      return {
-        id: authenticated.user.id,
-        username: profile.username,
-        email: profile.email,
-        gender:
-          profile.gender === "male" || profile.gender === "female"
-            ? profile.gender
-            : null,
-        sessionId: authenticated.sessionId,
-      };
+      return toAuthenticatedUser(profile, authenticated.sessionId);
     }
 
     if (
@@ -351,18 +412,7 @@ export async function getAuthenticatedUser(
     }
 
     const profile = await getUserProfileByWorkosUserId(refreshed.user.id);
-    if (!profile) return null;
-
-    return {
-      id: refreshed.user.id,
-      username: profile.username,
-      email: profile.email,
-      gender:
-        profile.gender === "male" || profile.gender === "female"
-          ? profile.gender
-          : null,
-      sessionId: refreshed.sessionId,
-    };
+    return toAuthenticatedUser(profile, refreshed.sessionId);
   } catch {
     return null;
   }

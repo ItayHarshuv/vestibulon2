@@ -15,29 +15,38 @@ import {
 } from "../../src/lib/validation.js";
 
 function getWorkOSErrorCode(error: unknown) {
-  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
-    return error.code;
+  if (error && typeof error === "object") {
+    const errorRecord = error as Record<string, unknown>;
+    if (typeof errorRecord.code === "string") {
+      return errorRecord.code;
+    }
   }
 
   return null;
 }
 
+function getFirstNestedWorkOSError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const nestedErrors = (error as { errors?: unknown }).errors;
+  if (!Array.isArray(nestedErrors)) {
+    return null;
+  }
+
+  const firstError: unknown = nestedErrors[0];
+  if (!firstError || typeof firstError !== "object") {
+    return null;
+  }
+
+  return firstError as Record<string, unknown>;
+}
+
 function getWorkOSNestedErrorCode(error: unknown) {
-  if (
-    error &&
-    typeof error === "object" &&
-    "errors" in error &&
-    Array.isArray(error.errors)
-  ) {
-    const firstError = error.errors[0];
-    if (
-      firstError &&
-      typeof firstError === "object" &&
-      "code" in firstError &&
-      typeof firstError.code === "string"
-    ) {
-      return firstError.code;
-    }
+  const firstError = getFirstNestedWorkOSError(error);
+  if (typeof firstError?.code === "string") {
+    return firstError.code;
   }
 
   return null;
@@ -49,43 +58,26 @@ function getWorkOSErrorMessage(error: unknown, fallback: string) {
     return "כתובת האימייל כבר קיימת במערכת";
   }
 
-  if (
-    error &&
-    typeof error === "object" &&
-    "errors" in error &&
-    Array.isArray(error.errors)
-  ) {
-    const firstError = error.errors[0];
-    if (
-      firstError &&
-      typeof firstError === "object" &&
-      "message" in firstError &&
-      typeof firstError.message === "string"
-    ) {
-      return firstError.message;
+  const firstError = getFirstNestedWorkOSError(error);
+  if (typeof firstError?.message === "string") {
+    return firstError.message;
+  }
+
+  if (error && typeof error === "object") {
+    const errorRecord = error as Record<string, unknown>;
+    if (typeof errorRecord.error_description === "string") {
+      return errorRecord.error_description;
     }
-  }
 
-  if (
-    error &&
-    typeof error === "object" &&
-    "error_description" in error &&
-    typeof error.error_description === "string"
-  ) {
-    return error.error_description;
-  }
-
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
+    if (typeof errorRecord.message === "string") {
+      return errorRecord.message;
+    }
   }
 
   return fallback;
 }
+
+type WorkOSUser = NonNullable<Awaited<ReturnType<typeof findWorkOSUserByEmail>>>;
 
 async function findWorkOSUserByEmail(email: string) {
   const users = await getWorkOS().userManagement.listUsers({ email });
@@ -133,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const workos = getWorkOS();
-    let createdUser;
+    let createdUser: WorkOSUser | null = null;
     let didCreateWorkOSUser = false;
 
     try {
@@ -159,11 +151,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createdUser = existingWorkOSUser;
     }
 
+    if (!createdUser) {
+      throw new Error("Missing WorkOS user");
+    }
+
     try {
       await db.insert(userProfiles).values({
         workosUserId: createdUser.id,
         username,
         email: createdUser.email,
+        role: "patient",
       });
     } catch (error) {
       if (didCreateWorkOSUser) {
@@ -190,7 +187,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: createdUser.id,
         username,
         email: createdUser.email,
+        role: "patient",
+        clinicianUserId: null,
         gender: null,
+        points: 0,
       },
     });
   } catch (error) {

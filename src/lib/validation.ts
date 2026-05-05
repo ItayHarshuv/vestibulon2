@@ -42,6 +42,19 @@ function integerRouteParam(message: string) {
     .transform((value) => Number(value));
 }
 
+function optionalUserIdField(message: string) {
+  return z.preprocess(
+    (value) => (Array.isArray(value) ? value[0] : value),
+    z
+      .string({
+        invalid_type_error: message,
+      })
+      .trim()
+      .min(1, message)
+      .optional(),
+  );
+}
+
 export function getZodErrorMessage(
   error: z.ZodError,
   fallback = "Invalid request",
@@ -50,6 +63,7 @@ export function getZodErrorMessage(
 }
 
 export const genderSchema = z.enum(["male", "female"]);
+export const userRoleSchema = z.enum(["clinician", "patient"]);
 
 export const signInFormSchema = z.object({
   username: requiredTrimmedString("יש להזין שם משתמש"),
@@ -73,7 +87,10 @@ export const authUserSchema = z.object({
   id: requiredTrimmedString("Missing id"),
   username: requiredTrimmedString("Missing username"),
   email: z.string().email("Missing email"),
+  role: userRoleSchema,
+  clinicianUserId: z.string().min(1, "Missing clinicianUserId").nullable(),
   gender: genderSchema.nullable(),
+  points: z.number().int().nonnegative(),
 });
 
 export const authSessionResponseSchema = z.object({
@@ -92,9 +109,27 @@ export const passwordResetRequestSchema = z.preprocess(
 
 export const updateProfileSchema = z.preprocess(
   coerceObject,
-  z.object({
-    gender: genderSchema,
-  })
+  z
+    .object({
+      userId: optionalUserIdField("userId must be a string"),
+      gender: genderSchema.optional(),
+      numberOfSessions: integerField(
+        "numberOfSessions must be an integer greater than 0",
+      )
+        .min(1, "numberOfSessions must be an integer greater than 0")
+        .optional(),
+    })
+    .superRefine((value, context) => {
+      if (
+        value.gender === undefined &&
+        value.numberOfSessions === undefined
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one updatable field is required",
+        });
+      }
+    }),
 );
 
 export const programRouteParamsSchema = z.object({
@@ -111,7 +146,19 @@ export const workoutLocationStateSchema = z.object({
   workoutStartTimestampMs: z.number().finite().optional(),
 });
 
-export const programsQuerySchema = z.preprocess(coerceObject, z.object({}));
+export const profileQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: optionalUserIdField("userId must be a string"),
+  }),
+);
+
+export const programsQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: optionalUserIdField("userId must be a string"),
+  }),
+);
 
 export const todayRepsQuerySchema = z.preprocess(
   coerceObject,
@@ -164,6 +211,7 @@ export const createRepBodySchema = z.preprocess(
 export const getRepsQuerySchema = z.preprocess(
   coerceObject,
   z.object({
+    userId: optionalUserIdField("userId must be a string"),
     ids: z.preprocess(
       (value) => {
         const rawValue =
@@ -270,6 +318,18 @@ export const createRepResponseSchema = z.object({
   startTime: z.string(),
 });
 
+export const updateRepResponseSchema = z.object({
+  id: z.number().int(),
+  endTime: z.date().or(z.string()).optional(),
+  bpmEndOfRep: z.number().int().optional(),
+  flagPaused: z.boolean().optional(),
+  dizziness: z.number().int().min(0).max(10).optional(),
+  nausea: z.number().int().min(0).max(10).optional(),
+  generalDifficulty: z.number().int().min(0).max(10).optional(),
+  pointsAwarded: z.number().int().nonnegative().optional(),
+  totalPoints: z.number().int().nonnegative().nullable().optional(),
+});
+
 export const apiRepSummarySchema = z.object({
   id: z.number().int(),
   startTime: z.string(),
@@ -293,4 +353,5 @@ export type SignUpForm = z.infer<typeof signUpFormSchema>;
 export type UpdateProgramBody = z.infer<typeof updateProgramBodySchema>;
 export type CreateRepBody = z.infer<typeof createRepBodySchema>;
 export type UpdateRepBody = z.infer<typeof updateRepBodySchema>;
+export type UpdateRepResponse = z.infer<typeof updateRepResponseSchema>;
 export type ApiRepSummary = z.infer<typeof apiRepSummarySchema>;

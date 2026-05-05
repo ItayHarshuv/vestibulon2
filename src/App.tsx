@@ -10,6 +10,7 @@ import { SchedulePage } from "./pages/SchedulePage";
 import { SelectExercisePage } from "./pages/SelectExercisePage";
 import { SelectPreviousSessionPage } from "./pages/SelectPreviousSessionPage";
 import { SessionCompletePage } from "./pages/SessionCompletePage";
+import { RegularMenuPage } from "./pages/RegularMenuPage";
 import { WorkoutPage } from "./pages/WorkoutPage";
 import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
 import { WorkoutRestPage } from "./pages/WorkoutRestPage";
@@ -57,6 +58,7 @@ export function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/regular-menu" element={<RegularMenuPage />} />
           <Route
             path="/schedule"
             element={

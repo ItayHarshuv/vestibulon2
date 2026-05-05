@@ -1,0 +1,1 @@
+ALTER TABLE "vestibulon2_user_profile" ADD COLUMN "points" integer DEFAULT 0 NOT NULL;

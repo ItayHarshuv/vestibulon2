@@ -3,6 +3,7 @@
 
 import { relations } from "drizzle-orm";
 import { index, pgTableCreator } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `vestibulon2_${name}`);
 
@@ -13,7 +14,14 @@ export const userProfiles = createTable(
     workosUserId: d.varchar("workos_user_id", { length: 256 }).notNull().unique(),
     username: d.varchar("username", { length: 256 }).notNull().unique(),
     email: d.varchar("email", { length: 256 }).notNull().unique(),
+    role: d.varchar("role", { length: 32 }).notNull().default("patient"),
+    clinicianUserId: d
+      .varchar("clinician_user_id", { length: 256 })
+      .references((): AnyPgColumn => userProfiles.workosUserId, {
+        onDelete: "set null",
+      }),
     gender: d.varchar("gender", { length: 16 }),
+    points: d.integer("points").notNull().default(0),
     numberOfSessions: d.integer("number_of_sessions").notNull().default(1),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
@@ -29,6 +37,8 @@ export const userProfiles = createTable(
     index("user_profile_workos_user_idx").on(t.workosUserId),
     index("user_profile_username_idx").on(t.username),
     index("user_profile_email_idx").on(t.email),
+    index("user_profile_role_idx").on(t.role),
+    index("user_profile_clinician_user_idx").on(t.clinicianUserId),
   ],
 );
 
@@ -121,6 +131,14 @@ export const repsRelations = relations(reps, ({ one }) => ({
   }),
 }));
 
-export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
+export const userProfilesRelations = relations(userProfiles, ({ many, one }) => ({
+  clinician: one(userProfiles, {
+    fields: [userProfiles.clinicianUserId],
+    references: [userProfiles.workosUserId],
+    relationName: "clinician_patients",
+  }),
+  patients: many(userProfiles, {
+    relationName: "clinician_patients",
+  }),
   programs: many(programs),
 }));

@@ -1,8 +1,13 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
+import {
+  getAccessibleUserProfile,
+  getAuthenticatedUser,
+  handleOptions,
+  setApiHeaders,
+} from "./auth.js";
 import { db } from "./db/index.js";
-import { programs, reps } from "./db/schema.js";
+import { programs, reps, todayReps, userProfiles } from "./db/schema.js";
 import {
   assignRepToTodayRepSlot,
   ensureTodayRepsForUser,
@@ -37,6 +42,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
+      const targetUserId = queryResult.data.userId ?? authenticatedUserId;
+      const accessibleProfile = await getAccessibleUserProfile(
+        authenticatedUser,
+        targetUserId,
+      );
+      if (!accessibleProfile) {
+        res.status(targetUserId === authenticatedUserId ? 404 : 403).json({
+          error:
+            targetUserId === authenticatedUserId ? "User profile not found" : "Forbidden",
+        });
+        return;
+      }
+
       const rows = await db
         .select({
           id: reps.id,
@@ -46,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(reps)
         .where(
           and(
-            eq(reps.userId, authenticatedUserId),
+            eq(reps.userId, targetUserId),
             inArray(reps.id, queryResult.data.ids),
           ),
         )
@@ -150,11 +168,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         nausea?: number;
         generalDifficulty?: number;
       } = {};
+      let shouldAwardCompletionPoints = false;
 
       if (numberOfSeconds !== undefined) {
         const repRows = await db
           .select({
             startTime: reps.startTime,
+            endTime: reps.endTime,
           })
           .from(reps)
           .where(and(eq(reps.id, repId), eq(reps.userId, authenticatedUserId)))
@@ -169,6 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         valuesToUpdate.endTime = new Date(
           repRow.startTime.getTime() + numberOfSeconds * 1000,
         );
+        shouldAwardCompletionPoints = repRow.endTime === null;
       }
 
       if (bpmEndOfRep !== undefined) {
@@ -202,9 +223,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
+      let pointsAwarded = 0;
+      let totalPoints: number | null = null;
+
+      if (shouldAwardCompletionPoints) {
+        const currentTodayRepRows = await db
+          .select({
+            practiceTime: todayReps.practiceTime,
+            exerciseName: todayReps.exerciseName,
+          })
+          .from(todayReps)
+          .where(and(eq(todayReps.userId, authenticatedUserId), eq(todayReps.repId, repId)))
+          .limit(1);
+
+        const currentTodayRep = currentTodayRepRows[0];
+        if (currentTodayRep) {
+          const sessionRows = await db
+            .select({
+              exerciseName: todayReps.exerciseName,
+              repEndTime: reps.endTime,
+            })
+            .from(todayReps)
+            .leftJoin(reps, eq(todayReps.repId, reps.id))
+            .where(
+              and(
+                eq(todayReps.userId, authenticatedUserId),
+                eq(todayReps.practiceTime, currentTodayRep.practiceTime),
+              ),
+            );
+
+          const currentExerciseRows = sessionRows.filter(
+            (row) => row.exerciseName === currentTodayRep.exerciseName,
+          );
+          const didCompleteExercise =
+            currentExerciseRows.length > 0 &&
+            currentExerciseRows.every((row) => row.repEndTime !== null);
+          const didCompleteSession =
+            sessionRows.length > 0 &&
+            sessionRows.every((row) => row.repEndTime !== null);
+
+          pointsAwarded = 10;
+          if (didCompleteExercise) {
+            pointsAwarded += 100;
+          }
+          if (didCompleteSession) {
+            pointsAwarded += 1000;
+          }
+        } else {
+          pointsAwarded = 10;
+        }
+
+        const updatedProfile = await db
+          .update(userProfiles)
+          .set({
+            points: sql`${userProfiles.points} + ${pointsAwarded}`,
+          })
+          .where(eq(userProfiles.workosUserId, authenticatedUserId))
+          .returning({
+            points: userProfiles.points,
+          });
+
+        totalPoints = updatedProfile[0]?.points ?? null;
+      }
+
       res.status(200).json({
         id: repId,
         ...valuesToUpdate,
+        pointsAwarded,
+        totalPoints,
       });
       return;
     }

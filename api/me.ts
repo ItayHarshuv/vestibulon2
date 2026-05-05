@@ -1,21 +1,27 @@
 import { eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
+import {
+  getAccessibleUserProfile,
+  getAuthenticatedUser,
+  handleOptions,
+  setApiHeaders,
+} from "./auth.js";
 import { db } from "./db/index.js";
 import { userProfiles } from "./db/schema.js";
 import {
   getZodErrorMessage,
+  profileQuerySchema,
   updateProfileSchema,
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleOptions(req, res, "PATCH,OPTIONS")) {
+  if (handleOptions(req, res, "GET,PATCH,OPTIONS")) {
     return;
   }
 
-  setApiHeaders(req, res, "PATCH,OPTIONS");
+  setApiHeaders(req, res, "GET,PATCH,OPTIONS");
 
-  if (req.method !== "PATCH") {
+  if (req.method !== "GET" && req.method !== "PATCH") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
@@ -27,21 +33,97 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    if (req.method === "GET") {
+      const queryResult = profileQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
+        return;
+      }
+
+      const targetUserId = queryResult.data.userId ?? user.id;
+      const profile = await getAccessibleUserProfile(user, targetUserId);
+      if (!profile) {
+        res.status(targetUserId === user.id ? 404 : 403).json({
+          error:
+            targetUserId === user.id ? "User profile not found" : "Forbidden",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        user: {
+          id: profile.workosUserId,
+          username: profile.username,
+          email: profile.email,
+          role: profile.role === "clinician" ? "clinician" : "patient",
+          clinicianUserId: profile.clinicianUserId,
+          gender:
+            profile.gender === "male" || profile.gender === "female"
+              ? profile.gender
+              : null,
+          points: profile.points,
+          numberOfSessions: profile.numberOfSessions,
+        },
+      });
+      return;
+    }
+
     const bodyResult = updateProfileSchema.safeParse(req.body);
     if (!bodyResult.success) {
       res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
       return;
     }
 
+    const targetUserId = bodyResult.data.userId ?? user.id;
+    const profile = await getAccessibleUserProfile(user, targetUserId);
+    if (!profile) {
+      res.status(targetUserId === user.id ? 404 : 403).json({
+        error:
+          targetUserId === user.id ? "User profile not found" : "Forbidden",
+      });
+      return;
+    }
+
+    const updates: {
+      gender?: "male" | "female";
+      numberOfSessions?: number;
+    } = {};
+
+    if (bodyResult.data.gender !== undefined) {
+      if (targetUserId !== user.id) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+
+      updates.gender = bodyResult.data.gender;
+    }
+
+    if (bodyResult.data.numberOfSessions !== undefined) {
+      const canClinicianUpdatePatientSessions =
+        user.role === "clinician" &&
+        profile.role === "patient" &&
+        profile.clinicianUserId === user.id;
+      if (!canClinicianUpdatePatientSessions) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+
+      updates.numberOfSessions = bodyResult.data.numberOfSessions;
+    }
+
     const updated = await db
       .update(userProfiles)
-      .set({ gender: bodyResult.data.gender })
-      .where(eq(userProfiles.workosUserId, user.id))
+      .set(updates)
+      .where(eq(userProfiles.workosUserId, targetUserId))
       .returning({
         workosUserId: userProfiles.workosUserId,
         username: userProfiles.username,
         email: userProfiles.email,
+        role: userProfiles.role,
+        clinicianUserId: userProfiles.clinicianUserId,
         gender: userProfiles.gender,
+        points: userProfiles.points,
+        numberOfSessions: userProfiles.numberOfSessions,
       });
 
     const updatedProfile = updated[0];
@@ -55,10 +137,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: updatedProfile.workosUserId,
         username: updatedProfile.username,
         email: updatedProfile.email,
+        role: updatedProfile.role === "clinician" ? "clinician" : "patient",
+        clinicianUserId: updatedProfile.clinicianUserId,
         gender:
           updatedProfile.gender === "male" || updatedProfile.gender === "female"
             ? updatedProfile.gender
             : null,
+        points: updatedProfile.points,
+        numberOfSessions: updatedProfile.numberOfSessions,
       },
     });
   } catch (error) {
