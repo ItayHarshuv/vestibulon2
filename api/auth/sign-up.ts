@@ -131,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       createdUser = await workos.userManagement.createUser({
         email,
+        emailVerified: true,
         password,
       });
       didCreateWorkOSUser = true;
@@ -149,6 +150,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       createdUser = existingWorkOSUser;
+      await workos.userManagement.updateUser({
+        userId: createdUser.id,
+        emailVerified: true,
+      });
     }
 
     if (!createdUser) {

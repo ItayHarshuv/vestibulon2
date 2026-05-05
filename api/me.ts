@@ -1,13 +1,15 @@
 import { eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
+  clearSessionCookie,
   getAccessibleUserProfile,
   getAuthenticatedUser,
+  getWorkOS,
   handleOptions,
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { userProfiles } from "./db/schema.js";
+import { programs, userProfiles } from "./db/schema.js";
 import {
   getZodErrorMessage,
   profileQuerySchema,
@@ -15,13 +17,13 @@ import {
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleOptions(req, res, "GET,PATCH,OPTIONS")) {
+  if (handleOptions(req, res, "GET,PATCH,DELETE,OPTIONS")) {
     return;
   }
 
-  setApiHeaders(req, res, "GET,PATCH,OPTIONS");
+  setApiHeaders(req, res, "GET,PATCH,DELETE,OPTIONS");
 
-  if (req.method !== "GET" && req.method !== "PATCH") {
+  if (req.method !== "GET" && req.method !== "PATCH" && req.method !== "DELETE") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
@@ -65,6 +67,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           numberOfSessions: profile.numberOfSessions,
         },
       });
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const queryResult = profileQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
+        return;
+      }
+
+      const targetUserId = queryResult.data.userId ?? user.id;
+      const profile = await getAccessibleUserProfile(user, targetUserId);
+      if (!profile) {
+        res.status(targetUserId === user.id ? 404 : 403).json({
+          error:
+            targetUserId === user.id ? "User profile not found" : "Forbidden",
+        });
+        return;
+      }
+
+      const deletingSelf = targetUserId === user.id;
+      let deletedFromWorkOS = false;
+
+      try {
+        if (deletingSelf && user.sessionId) {
+          await getWorkOS().userManagement.revokeSession({ sessionId: user.sessionId }).catch(
+            (error) => {
+              console.error("Error revoking WorkOS session before deletion:", error);
+            },
+          );
+        }
+
+        await getWorkOS().userManagement.deleteUser(targetUserId);
+        deletedFromWorkOS = true;
+
+        await db.transaction(async (tx) => {
+          await tx.delete(programs).where(eq(programs.userId, targetUserId));
+          await tx.delete(userProfiles).where(eq(userProfiles.workosUserId, targetUserId));
+        });
+      } catch (error) {
+        console.error("Error deleting user:", error);
+
+        if (deletedFromWorkOS) {
+          if (deletingSelf) {
+            clearSessionCookie(req, res);
+          }
+
+          res.status(502).json({
+            error: "User deleted from WorkOS but local cleanup failed",
+          });
+          return;
+        }
+
+        res.status(500).json({ error: "Failed to delete user" });
+        return;
+      }
+
+      if (deletingSelf) {
+        clearSessionCookie(req, res);
+      }
+
+      res.status(200).json({ ok: true });
       return;
     }
 

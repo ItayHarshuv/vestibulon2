@@ -18,6 +18,9 @@ export function ClinicianNewPatientPage() {
   const [patients, setPatients] = useState<ClinicianPatient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState("");
+  const [patientPendingDeletion, setPatientPendingDeletion] =
+    useState<ClinicianPatient | null>(null);
+  const [deletingPatientId, setDeletingPatientId] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -44,6 +47,8 @@ export function ClinicianNewPatientPage() {
       }
     })();
   }, []);
+
+  const showDeleteButton = true;
 
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,8 +91,9 @@ export function ClinicianNewPatientPage() {
         throw new Error("יצירת המטופל/ת נכשלה");
       }
 
+      const createdPatient = responseData.user;
       setPatients((currentPatients) =>
-        [...currentPatients, responseData.user].sort((left, right) =>
+        [...currentPatients, createdPatient].sort((left, right) =>
           left.username.localeCompare(right.username, "he"),
         ),
       );
@@ -100,6 +106,40 @@ export function ClinicianNewPatientPage() {
       setError(err instanceof Error ? err.message : "יצירת המטופל/ת נכשלה");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeletePatient = async () => {
+    if (!patientPendingDeletion) {
+      return;
+    }
+
+    setDeletingPatientId(patientPendingDeletion.id);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const response = await apiFetch(
+        `/api/me?userId=${encodeURIComponent(patientPendingDeletion.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const responseData = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(responseData.error ?? "מחיקת המשתמש נכשלה");
+      }
+
+      setPatients((currentPatients) =>
+        currentPatients.filter((patient) => patient.id !== patientPendingDeletion.id),
+      );
+      setSuccessMessage("המשתמש נמחק בהצלחה");
+      setPatientPendingDeletion(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "מחיקת המשתמש נכשלה");
+    } finally {
+      setDeletingPatientId(null);
     }
   };
 
@@ -201,13 +241,61 @@ export function ClinicianNewPatientPage() {
                 key={patient.id}
                 className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
               >
-                <p className="font-semibold text-gray-900">{patient.username}</p>
-                <p className="mt-1 text-sm text-gray-600">{patient.email}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900">{patient.username}</p>
+                    <p className="mt-1 text-sm text-gray-600">{patient.email}</p>
+                  </div>
+
+                  {showDeleteButton && <button
+                    type="button"
+                    onClick={() => {
+                      setError("");
+                      setSuccessMessage("");
+                      setPatientPendingDeletion(patient);
+                    }}
+                    disabled={deletingPatientId === patient.id}
+                    className="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deletingPatientId === patient.id ? "מוחק..." : "מחיקת משתמש"}
+                  </button>}
+                </div>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {patientPendingDeletion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">מחיקת משתמש</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              האם למחוק את המשתמש/ת <strong>{patientPendingDeletion.username}</strong>?
+              פעולה זו תמחק את המשתמש גם מ-WorkOS ולא ניתן יהיה לשחזר אותה.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPatientPendingDeletion(null)}
+                disabled={deletingPatientId !== null}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeletePatient()}
+                disabled={deletingPatientId !== null}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingPatientId !== null ? "מוחק..." : "כן, למחוק"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

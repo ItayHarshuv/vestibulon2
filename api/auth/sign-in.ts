@@ -12,6 +12,17 @@ import {
   signInRequestSchema,
 } from "../../src/lib/validation.js";
 
+function getWorkOSErrorCode(error: unknown) {
+  if (error && typeof error === "object") {
+    const errorRecord = error as Record<string, unknown>;
+    if (typeof errorRecord.code === "string") {
+      return errorRecord.code;
+    }
+  }
+
+  return null;
+}
+
 function getWorkOSErrorMessage(error: unknown) {
   if (
     error &&
@@ -61,11 +72,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const authentication = await getWorkOS().userManagement.authenticateWithPassword({
-      email: profile.email,
-      password,
-      ...getAuthenticationOptions(req),
-    });
+    const workos = getWorkOS();
+    const authenticate = () =>
+      workos.userManagement.authenticateWithPassword({
+        email: profile.email,
+        password,
+        ...getAuthenticationOptions(req),
+      });
+
+    let authentication;
+    try {
+      authentication = await authenticate();
+    } catch (error) {
+      if (getWorkOSErrorCode(error) !== "email_verification_required") {
+        throw error;
+      }
+
+      await workos.userManagement.updateUser({
+        userId: profile.workosUserId,
+        emailVerified: true,
+      });
+      authentication = await authenticate();
+    }
 
     if (!authentication.sealedSession) {
       throw new Error("Missing sealed session");
