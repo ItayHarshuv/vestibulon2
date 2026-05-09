@@ -48,7 +48,7 @@ export function ClinicianNewPatientPage() {
     })();
   }, []);
 
-  const showDeleteButton = true;
+  const showDeleteButton = false;
 
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
