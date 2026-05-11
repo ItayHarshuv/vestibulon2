@@ -1,25 +1,57 @@
-# Rebuild vestibulon with T3 stack
+# vestibulon2
 
-##TODO
+## Local development (Docker + Postgres)
 
-- [x] Deploy
-- [x] Setup database
-- [x] Add login authentication (w/ WorkOS)
-- [X] Make UI homepage
-- [X] Build on ios and android (w/ capacitor)
-- [-] Build the entire DB schemas
-- [ ] Add practice page
-- [ ] Set user premmistions to write and read DB (w/ WorkOS)
-- [ ] Schedule page
-- [ ] Push notification
-- [ ] Add admin account set exercises page
-- [ ] Add admin data page
-- [ ] About and term agreements (maybe with WorkOS)
-- [ ] Chat
-- [ ] Configure styling
+This repo uses a PostgreSQL database (`DATABASE_URL`) with Drizzle, and local development runs the API via Vite middleware under `/api/*`.
 
-##Optinal Future TODOs
+### Prereqs
 
-- [ ] Error management (w/ Sentry)
-- [ ] Analytics (posthog)
+- Docker Desktop (or Docker Engine) with `docker compose`
+- Node + npm (only needed if you want to run commands on the host instead of inside Docker)
+
+### 1) Create your env file
+
+Copy the example env file and edit as needed:
+
+```bash
+cp .env.example .env
+```
+
+Notes:
+- For Docker dev, `docker-compose.yml` overrides `DATABASE_URL` inside the app container to use the `db` service.
+- If you use WorkOS-authenticated flows, you must also set `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_COOKIE_PASSWORD` in `.env`.
+- By default the database is **not** exposed to your host on port 5432 (to avoid port conflicts). It’s only reachable from other Docker services.
+
+### 2) Start the stack
+
+```bash
+docker compose up --build
+```
+
+Then open `http://localhost:5173`.
+
+### 3) Initialize the database schema
+
+In another terminal:
+
+```bash
+npm run docker:db:migrate
+```
+
+Alternatively (no migrations, just push schema):
+
+```bash
+npm run docker:db:push
+```
+
+### Useful commands
+
+- Logs: `npm run docker:logs`
+- Stop: `npm run docker:down`
+
+## Local development (without Docker)
+
+If you prefer to run everything on your machine:
+
+1) Create `.env` from `.env.example` and ensure `DATABASE_URL` points to a reachable Postgres (example uses `localhost:5432`).\n+2) Start a local Postgres (or use `./start-database.sh`).\n+3) Run `npm install` then `npm run dev`.
 

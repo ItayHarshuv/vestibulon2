@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vestibulon2
+    # If you want to connect from the host (psql, DBeaver, etc), uncomment:
+    ports:
+      - "5434:5432"
+    volumes:
+      - vestibulon2_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vestibulon2"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5173:5173"
+    environment:
+      # Override only what must differ inside Docker.
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/vestibulon2
+      # Optional: many dev flows expect NODE_ENV to be unset or "development",
+      # but we make it explicit for predictable behavior.
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - vestibulon2_node_modules:/app/node_modules
+
+volumes:
+  vestibulon2_pgdata:
+  vestibulon2_node_modules:

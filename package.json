@@ -20,7 +20,13 @@
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "start": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f --tail=200",
+    "docker:db:migrate": "docker compose exec -T app npm run db:migrate",
+    "docker:db:push": "docker compose exec -T app npm run db:push",
+    "docker:db:studio": "docker compose exec app npm run db:studio"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
