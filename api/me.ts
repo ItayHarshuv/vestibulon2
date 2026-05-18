@@ -10,6 +10,7 @@ import {
 } from "./auth.js";
 import { db } from "./db/index.js";
 import { programs, userProfiles } from "./db/schema.js";
+import { recordUserSessionHistorySnapshot } from "./prescription-history-service.js";
 import {
   getZodErrorMessage,
   profileQuerySchema,
@@ -194,6 +195,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!updatedProfile) {
       res.status(404).json({ error: "User profile not found" });
       return;
+    }
+
+    if (updates.numberOfSessions !== undefined) {
+      await recordUserSessionHistorySnapshot(
+        targetUserId,
+        updatedProfile.numberOfSessions,
+      );
     }
 
     res.status(200).json({

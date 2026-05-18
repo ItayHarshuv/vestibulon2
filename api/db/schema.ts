@@ -92,6 +92,60 @@ export const reps = createTable(
   ],
 );
 
+export const programHistory = createTable(
+  "program_history",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    programId: d
+      .integer("program_id")
+      .notNull()
+      .references(() => programs.id, { onDelete: "cascade" }),
+    userId: d
+      .varchar("user_id", { length: 256 })
+      .notNull()
+      .references(() => userProfiles.workosUserId, { onDelete: "cascade" }),
+    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    numberOfRepetions: d.integer("number_of_repetions").notNull(),
+    active: d.boolean("active").notNull(),
+    effectiveFrom: d
+      .timestamp("effective_from", { withTimezone: true })
+      .notNull(),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    index("program_history_program_effective_idx").on(t.programId, t.effectiveFrom),
+    index("program_history_user_exercise_idx").on(t.userId, t.exerciseName),
+  ],
+);
+
+export const userSessionHistory = createTable(
+  "user_session_history",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: d
+      .varchar("user_id", { length: 256 })
+      .notNull()
+      .references(() => userProfiles.workosUserId, { onDelete: "cascade" }),
+    numberOfSessions: d.integer("number_of_sessions").notNull(),
+    effectiveFrom: d
+      .timestamp("effective_from", { withTimezone: true })
+      .notNull(),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    index("user_session_history_user_effective_idx").on(
+      t.userId,
+      t.effectiveFrom,
+    ),
+  ],
+);
+
 export const todayReps = createTable(
   "today_reps",
   (d) => ({
@@ -122,6 +176,21 @@ export const programsRelations = relations(programs, ({ many, one }) => ({
     references: [userProfiles.workosUserId],
   }),
   reps: many(reps),
+  history: many(programHistory),
+}));
+
+export const programHistoryRelations = relations(programHistory, ({ one }) => ({
+  program: one(programs, {
+    fields: [programHistory.programId],
+    references: [programs.id],
+  }),
+}));
+
+export const userSessionHistoryRelations = relations(userSessionHistory, ({ one }) => ({
+  user: one(userProfiles, {
+    fields: [userSessionHistory.userId],
+    references: [userProfiles.workosUserId],
+  }),
 }));
 
 export const repsRelations = relations(reps, ({ one }) => ({
@@ -141,4 +210,5 @@ export const userProfilesRelations = relations(userProfiles, ({ many, one }) => 
     relationName: "clinician_patients",
   }),
   programs: many(programs),
+  sessionHistory: many(userSessionHistory),
 }));

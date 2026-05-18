@@ -10,13 +10,11 @@ function getPageTitle(pathname: string) {
   if (matchPath("/clinician-menu/treatment-plan", pathname)) {
     return "יצירת / שינוי תכנית טיפול למטופל/ת";
   }
-  if (matchPath("/clinician-menu/patient-practice-data", pathname)) {
-    return "צפייה בנתוני תרגול של מטופל/ת";
-  }
   if (matchPath("/clinician-menu/messages", pathname)) {
     return "שליחת הודעות למטופל/ת";
   }
   if (matchPath("/schedule", pathname)) return "קביעת זמני תרגול";
+  if (matchPath("/exercise-statistics", pathname)) return "נתוני התרגול";
   if (matchPath("/select-exercise", pathname)) return "בחירת תרגיל";
   if (matchPath("/select-previous-session", pathname)) return "השלמת תרגולים קודמים";
   if (matchPath("/exercise-description/:programId", pathname)) return "תיאור התרגיל";

@@ -14,6 +14,7 @@ import meHandler from "./api/me";
 import programsHandler from "./api/programs";
 import repsHandler from "./api/reps";
 import todayRepsHandler from "./api/today-reps";
+import exerciseStatisticsHandler from "./api/exercise-statistics";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,6 +39,7 @@ export default defineConfig({
           "/programs": programsHandler,
           "/reps": repsHandler,
           "/today-reps": todayRepsHandler,
+          "/exercise-statistics": exerciseStatisticsHandler,
         };
 
         server.middlewares.use("/api", (req, res, next) => {

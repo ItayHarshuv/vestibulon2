@@ -16,7 +16,7 @@ export function ClinicianMenuPage() {
           iconScale={1.4}
         />
         <HomeActionButton
-          to="/clinician-menu/patient-practice-data"
+          to="/exercise-statistics"
           label="צפייה בנתוני תרגול של מטופל/ת"
           iconSrc="/assets/icons/bars-chart.svg"
         />

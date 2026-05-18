@@ -6,8 +6,8 @@ import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { ClinicianNewPatientPage } from "./pages/ClinicianNewPatientPage";
-import { ClinicianFeaturePlaceholderPage } from "./pages/ClinicianFeaturePlaceholderPage";
 import { ClinicianMenuPage } from "./pages/ClinicianMenuPage";
+import { ClinicianFeaturePlaceholderPage } from "./pages/ClinicianFeaturePlaceholderPage";
 import { CreditsPage } from "./pages/CreditsPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
 import { SchedulePage } from "./pages/SchedulePage";
@@ -18,6 +18,7 @@ import { RegularMenuPage } from "./pages/RegularMenuPage";
 import { WorkoutPage } from "./pages/WorkoutPage";
 import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
 import { WorkoutRestPage } from "./pages/WorkoutRestPage";
+import { ExerciseStatisticsPage } from "./pages/ExerciseStatisticsPage";
 
 function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading, user } = useAuth();
@@ -111,14 +112,6 @@ export function App() {
             }
           />
           <Route
-            path="/clinician-menu/patient-practice-data"
-            element={
-              <ClinicianOnly>
-                <ClinicianFeaturePlaceholderPage title="צפייה בנתוני תרגול של מטופל/ת" />
-              </ClinicianOnly>
-            }
-          />
-          <Route
             path="/clinician-menu/messages"
             element={
               <ClinicianOnly>
@@ -131,6 +124,14 @@ export function App() {
             element={
               <AuthGate>
                 <SchedulePage />
+              </AuthGate>
+            }
+          />
+          <Route
+            path="/exercise-statistics"
+            element={
+              <AuthGate>
+                <ExerciseStatisticsPage />
               </AuthGate>
             }
           />

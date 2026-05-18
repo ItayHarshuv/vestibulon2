@@ -273,7 +273,7 @@ export function HomePage() {
           iconSrc="/assets/icons/clock.svg"
         />
         <HomeActionButton
-          to="/"
+          to="/exercise-statistics"
           label="צפייה בנתוני התרגול"
           iconSrc="/assets/icons/bars-chart.svg"
         />

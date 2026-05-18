@@ -180,6 +180,35 @@ export const todayRepsQuerySchema = z.preprocess(
   }),
 );
 
+export const exerciseStatisticsQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    timeZone: z.preprocess(
+      (value) => (Array.isArray(value) ? value[0] : value),
+      requiredTrimmedString("timeZone is required"),
+    ),
+    userId: optionalUserIdField("userId must be a string"),
+  }),
+);
+
+export const exerciseStatisticsDaySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  plannedReps: z.number().int().nonnegative(),
+  completedReps: z.number().int().nonnegative(),
+  completionPercentage: z.number().int().min(0).max(100),
+});
+
+export const exerciseStatisticsSeriesSchema = z.object({
+  exerciseName: z.string(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  days: z.array(exerciseStatisticsDaySchema),
+});
+
+export const exerciseStatisticsResponseSchema = z.object({
+  exercises: z.array(exerciseStatisticsSeriesSchema),
+});
+
 export const updateProgramBodySchema = z.preprocess(
   coerceObject,
   z.object({
@@ -366,3 +395,5 @@ export type CreateRepBody = z.infer<typeof createRepBodySchema>;
 export type UpdateRepBody = z.infer<typeof updateRepBodySchema>;
 export type UpdateRepResponse = z.infer<typeof updateRepResponseSchema>;
 export type ApiRepSummary = z.infer<typeof apiRepSummarySchema>;
+export type ExerciseStatisticsSeries = z.infer<typeof exerciseStatisticsSeriesSchema>;
+export type ExerciseStatisticsResponse = z.infer<typeof exerciseStatisticsResponseSchema>;
