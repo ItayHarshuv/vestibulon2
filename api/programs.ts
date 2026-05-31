@@ -68,10 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             eq(programs.userId, program.userId),
           ),
         )
-        .returning({
-          id: programs.id,
-          metronomeBpmTemp: programs.metronomeBpmTemp,
-        });
+        .returning();
 
       const updatedRow = updated[0];
       if (!updatedRow) {

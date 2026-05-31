@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import clinicianPatientsHandler from "./api/clinician/patients";
+import clinicianTreatmentPlanHandler from "./api/clinician/treatment-plan";
 import sessionHandler from "./api/auth/session";
 import signInHandler from "./api/auth/sign-in";
 import signOutHandler from "./api/auth/sign-out";
@@ -30,6 +31,7 @@ export default defineConfig({
       configureServer(server) {
         const apiRoutes: Record<string, ApiHandler> = {
           "/clinician/patients": clinicianPatientsHandler,
+          "/clinician/treatment-plan": clinicianTreatmentPlanHandler,
           "/auth/session": sessionHandler,
           "/auth/sign-in": signInHandler,
           "/auth/sign-out": signOutHandler,

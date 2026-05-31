@@ -64,6 +64,13 @@
       "when": 1777720000000,
       "tag": "0008_exercise_statistics_history",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777721000000,
+      "tag": "0009_treatment_plans",
+      "breakpoints": true
     }
   ]
 }

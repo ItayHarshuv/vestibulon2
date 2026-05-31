@@ -114,10 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           exerciseName: program.exerciseName,
           startTime: now,
         })
-        .returning({
-          id: reps.id,
-          startTime: reps.startTime,
-        });
+        .returning();
 
       const createdRep = inserted[0];
       if (!createdRep) {
@@ -216,7 +213,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .update(reps)
         .set(valuesToUpdate)
         .where(and(eq(reps.id, repId), eq(reps.userId, authenticatedUserId)))
-        .returning({ id: reps.id });
+        .returning();
 
       if (updated.length === 0) {
         res.status(404).json({ error: "Rep not found" });
@@ -279,9 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             points: sql`${userProfiles.points} + ${pointsAwarded}`,
           })
           .where(eq(userProfiles.workosUserId, authenticatedUserId))
-          .returning({
-            points: userProfiles.points,
-          });
+          .returning();
 
         totalPoints = updatedProfile[0]?.points ?? null;
       }

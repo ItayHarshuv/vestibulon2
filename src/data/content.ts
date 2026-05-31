@@ -57,6 +57,20 @@ export interface ExerciseContent {
   displayCircle: boolean;
 }
 
+export const exerciseTemplateNames = [
+  "VORx1",
+  "VORx2",
+  "הביטואציה - אופקי",
+  "הביטואציה - אנכי",
+  "הביטואציה עם כיפוף גו",
+  "הביטואציה סיבובי",
+  "Gaze shifting",
+  "Imaginary target",
+  "שינויי כיוון בהליכה",
+] as const;
+
+export type ExerciseTemplateName = (typeof exerciseTemplateNames)[number];
+
 const exerciseTemplates: ExerciseTemplate[] = [
   {
     exName: "VORx1",

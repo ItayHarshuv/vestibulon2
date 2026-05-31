@@ -8,6 +8,7 @@ import { SignUpPage } from "./pages/SignUpPage";
 import { ClinicianNewPatientPage } from "./pages/ClinicianNewPatientPage";
 import { ClinicianMenuPage } from "./pages/ClinicianMenuPage";
 import { ClinicianFeaturePlaceholderPage } from "./pages/ClinicianFeaturePlaceholderPage";
+import { ClinicianTreatmentPlanPage } from "./pages/ClinicianTreatmentPlanPage";
 import { CreditsPage } from "./pages/CreditsPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
 import { SchedulePage } from "./pages/SchedulePage";
@@ -107,7 +108,7 @@ export function App() {
             path="/clinician-menu/treatment-plan"
             element={
               <ClinicianOnly>
-                <ClinicianFeaturePlaceholderPage title="יצירת / שינוי תכנית טיפול למטופל/ת" />
+                <ClinicianTreatmentPlanPage />
               </ClinicianOnly>
             }
           />

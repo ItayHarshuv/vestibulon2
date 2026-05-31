@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { allBackgrounds, allExPositions, exerciseTemplateNames } from "../data/content";
 
 function coerceObject(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -230,6 +231,90 @@ export const apiProgramSchema = z.object({
 });
 
 export const programsResponseSchema = z.array(apiProgramSchema);
+
+export const treatmentPlanQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: z.preprocess(
+      (value) => (Array.isArray(value) ? value[0] : value),
+      requiredTrimmedString("userId is required"),
+    ),
+  }),
+);
+
+export const treatmentPlanExerciseInputSchema = z.object({
+  exerciseName: z.enum(exerciseTemplateNames, {
+    errorMap: () => ({ message: "exerciseName must be a valid exercise" }),
+  }),
+  numberOfSeconds: integerField("numberOfSeconds must be an integer")
+    .min(1, "numberOfSeconds must be at least 1")
+    .max(600, "numberOfSeconds must be at most 600"),
+  numberOfRepetions: integerField("numberOfRepetions must be an integer")
+    .min(1, "numberOfRepetions must be at least 1")
+    .max(50, "numberOfRepetions must be at most 50"),
+  metronomeBpm: integerField("metronomeBpm must be an integer")
+    .min(30, "metronomeBpm must be at least 30")
+    .max(240, "metronomeBpm must be at most 240"),
+  position: z.enum(allExPositions, {
+    errorMap: () => ({ message: "position must be a valid position" }),
+  }),
+  background: z.enum(allBackgrounds, {
+    errorMap: () => ({ message: "background must be a valid background" }),
+  }),
+  recomendedVAS: integerField("recomendedVAS must be an integer")
+    .min(0, "recomendedVAS must be between 0 and 10")
+    .max(10, "recomendedVAS must be between 0 and 10"),
+});
+
+export const saveTreatmentPlanBodySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: requiredTrimmedString("userId is required"),
+    timeZone: requiredTrimmedString("timeZone is required"),
+    numberOfSessions: integerField("numberOfSessions must be an integer")
+      .min(1, "numberOfSessions must be at least 1")
+      .max(10, "numberOfSessions must be at most 10"),
+    exercises: z
+      .array(treatmentPlanExerciseInputSchema, {
+        required_error: "exercises is required",
+        invalid_type_error: "exercises must be an array",
+      })
+      .min(1, "At least one exercise is required")
+      .superRefine((exercises, context) => {
+        const names = exercises.map((exercise) => exercise.exerciseName);
+        if (new Set(names).size !== names.length) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "exercises must not contain duplicates",
+          });
+        }
+      }),
+  }),
+);
+
+export const treatmentPlanExerciseSchema = treatmentPlanExerciseInputSchema.extend({
+  id: z.number().int().optional(),
+  programId: z.number().int().optional(),
+});
+
+export const treatmentPlanResponseSchema = z.object({
+  plan: z
+    .object({
+      id: z.number().int(),
+      numberOfSessions: z.number().int(),
+      effectiveFrom: z.string(),
+      createdAt: z.string(),
+    })
+    .nullable(),
+  numberOfSessions: z.number().int(),
+  exercises: z.array(treatmentPlanExerciseSchema),
+});
+
+export const saveTreatmentPlanResponseSchema = z.object({
+  planId: z.number().int(),
+  numberOfSessions: z.number().int(),
+  exercises: z.array(apiProgramSchema),
+});
 
 const practiceTimeKeySchema = z
   .string()

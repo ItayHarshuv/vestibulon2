@@ -180,16 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .update(userProfiles)
       .set(updates)
       .where(eq(userProfiles.workosUserId, targetUserId))
-      .returning({
-        workosUserId: userProfiles.workosUserId,
-        username: userProfiles.username,
-        email: userProfiles.email,
-        role: userProfiles.role,
-        clinicianUserId: userProfiles.clinicianUserId,
-        gender: userProfiles.gender,
-        points: userProfiles.points,
-        numberOfSessions: userProfiles.numberOfSessions,
-      });
+      .returning();
 
     const updatedProfile = updated[0];
     if (!updatedProfile) {
