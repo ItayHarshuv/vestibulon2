@@ -349,46 +349,6 @@ export async function assignRepToTodayRepSlot(
   return true;
 }
 
-function getCurrentSessionCutoffPracticeTime(
-  rows: { practiceTime: Date; repId: number | null }[],
-  timeZone: string,
-  now: Date,
-) {
-  const scheduledRows = [...rows].sort(
-    (left, right) => left.practiceTime.getTime() - right.practiceTime.getTime(),
-  );
-  const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceTime <= now);
-  const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
-  const latestDuePracticeTimeKey = latestScheduledRow
-    ? getPracticeTimeKeyInTimeZone(latestScheduledRow.practiceTime, timeZone)
-    : null;
-
-  if (latestDuePracticeTimeKey) {
-    const latestDuePendingRow = scheduledRows.find(
-      (row) =>
-        getPracticeTimeKeyInTimeZone(row.practiceTime, timeZone) ===
-          latestDuePracticeTimeKey && row.repId === null,
-    );
-
-    if (latestDuePendingRow) {
-      return latestDuePendingRow.practiceTime;
-    }
-  }
-
-  const nextPendingRow = scheduledRows.find(
-    (row) => row.practiceTime > now && row.repId === null,
-  );
-  if (nextPendingRow) {
-    return nextPendingRow.practiceTime;
-  }
-
-  if (latestScheduledRow) {
-    return latestScheduledRow.practiceTime;
-  }
-
-  return null;
-}
-
 export async function updateTodayRepSessionTimesForUser(
   userId: string,
   timeZone: string,
