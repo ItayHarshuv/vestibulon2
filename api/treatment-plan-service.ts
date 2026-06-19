@@ -10,7 +10,7 @@ import {
   recordProgramHistorySnapshot,
   recordUserSessionHistorySnapshot,
 } from "./prescription-history-service.js";
-import { applyTreatmentPlanToTodaySchedule } from "./today-reps-service.js";
+import { ensureTodayRepsForUser } from "./today-reps-service.js";
 import type { z } from "zod";
 import type {
   saveTreatmentPlanBodySchema,
@@ -282,7 +282,7 @@ export async function saveTreatmentPlanForUser(
   }
 
   const activePrograms = await syncActiveProgramsForUser(userId, exercises);
-  await applyTreatmentPlanToTodaySchedule(userId, timeZone);
+  await ensureTodayRepsForUser(userId, timeZone);
 
   return {
     planId,
