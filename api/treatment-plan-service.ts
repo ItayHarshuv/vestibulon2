@@ -4,7 +4,7 @@ import {
   programs,
   treatmentPlanExercises,
   treatmentPlans,
-  userProfiles,
+  users,
 } from "./db/schema.js";
 import {
   recordProgramHistorySnapshot,
@@ -23,10 +23,10 @@ type SaveTreatmentPlanBody = z.infer<typeof saveTreatmentPlanBodySchema>;
 export async function getTreatmentPlanForUser(userId: string) {
   const profileRows = await db
     .select({
-      numberOfSessions: userProfiles.numberOfSessions,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.workosUserId, userId))
+    .from(users)
+    .where(eq(users.workosUserId, userId))
     .limit(1);
 
   const profile = profileRows[0];
@@ -264,18 +264,18 @@ export async function saveTreatmentPlanForUser(
 
   const profileRows = await db
     .select({
-      numberOfSessions: userProfiles.numberOfSessions,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.workosUserId, userId))
+    .from(users)
+    .where(eq(users.workosUserId, userId))
     .limit(1);
 
   const previousSessions = profileRows[0]?.numberOfSessions ?? 1;
 
   await db
-    .update(userProfiles)
+    .update(users)
     .set({ numberOfSessions })
-    .where(eq(userProfiles.workosUserId, userId));
+    .where(eq(users.workosUserId, userId));
 
   if (previousSessions !== numberOfSessions) {
     await recordUserSessionHistorySnapshot(userId, numberOfSessions, effectiveFrom);

@@ -3,7 +3,7 @@ import { db } from "./db/index.js";
 import {
   programHistory,
   programs,
-  userProfiles,
+  users,
   userSessionHistory,
 } from "./db/schema.js";
 
@@ -85,11 +85,11 @@ export async function recordUserSessionHistorySnapshot(
 export async function ensurePrescriptionHistoryForUser(userId: string) {
   const userRows = await db
     .select({
-      numberOfSessions: userProfiles.numberOfSessions,
-      createdAt: userProfiles.createdAt,
+      numberOfSessions: users.numberOfSessions,
+      createdAt: users.createdAt,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.workosUserId, userId))
+    .from(users)
+    .where(eq(users.workosUserId, userId))
     .limit(1);
 
   const userProfile = userRows[0];

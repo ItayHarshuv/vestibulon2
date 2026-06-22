@@ -5,7 +5,7 @@ import {
   WorkOS,
 } from "@workos-inc/node";
 import { db } from "./db/index.js";
-import { userProfiles } from "./db/schema.js";
+import { users } from "./db/schema.js";
 import type { Gender } from "../src/data/content.js";
 
 const DEFAULT_SESSION_COOKIE_NAME = "vestibulon_session";
@@ -275,17 +275,17 @@ function toAuthenticatedUser(
 export async function getUserProfileByWorkosUserId(workosUserId: string) {
   const rows = await db
     .select({
-      workosUserId: userProfiles.workosUserId,
-      username: userProfiles.username,
-      email: userProfiles.email,
-      role: userProfiles.role,
-      clinicianUserId: userProfiles.clinicianUserId,
-      gender: userProfiles.gender,
-      points: userProfiles.points,
-      numberOfSessions: userProfiles.numberOfSessions,
+      workosUserId: users.workosUserId,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+      clinicianUserId: users.clinicianUserId,
+      gender: users.gender,
+      points: users.points,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.workosUserId, workosUserId))
+    .from(users)
+    .where(eq(users.workosUserId, workosUserId))
     .limit(1);
 
   return rows[0] ?? null;
@@ -294,17 +294,17 @@ export async function getUserProfileByWorkosUserId(workosUserId: string) {
 export async function getUserProfileByUsername(username: string) {
   const rows = await db
     .select({
-      workosUserId: userProfiles.workosUserId,
-      username: userProfiles.username,
-      email: userProfiles.email,
-      role: userProfiles.role,
-      clinicianUserId: userProfiles.clinicianUserId,
-      gender: userProfiles.gender,
-      points: userProfiles.points,
-      numberOfSessions: userProfiles.numberOfSessions,
+      workosUserId: users.workosUserId,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+      clinicianUserId: users.clinicianUserId,
+      gender: users.gender,
+      points: users.points,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.username, username))
+    .from(users)
+    .where(eq(users.username, username))
     .limit(1);
 
   return rows[0] ?? null;
@@ -313,24 +313,24 @@ export async function getUserProfileByUsername(username: string) {
 export async function getUserProfileByIdentifier(identifier: string) {
   const normalizedIdentifier = identifier.trim().toLowerCase();
   const filters = identifier.includes("@")
-    ? [eq(userProfiles.email, normalizedIdentifier)]
+    ? [eq(users.email, normalizedIdentifier)]
     : [
-        eq(userProfiles.username, identifier.trim()),
-        eq(userProfiles.email, normalizedIdentifier),
+        eq(users.username, identifier.trim()),
+        eq(users.email, normalizedIdentifier),
       ];
 
   const rows = await db
     .select({
-      workosUserId: userProfiles.workosUserId,
-      username: userProfiles.username,
-      email: userProfiles.email,
-      role: userProfiles.role,
-      clinicianUserId: userProfiles.clinicianUserId,
-      gender: userProfiles.gender,
-      points: userProfiles.points,
-      numberOfSessions: userProfiles.numberOfSessions,
+      workosUserId: users.workosUserId,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+      clinicianUserId: users.clinicianUserId,
+      gender: users.gender,
+      points: users.points,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
+    .from(users)
     .where(filters.length === 1 ? filters[0]! : or(...filters))
     .limit(1);
 

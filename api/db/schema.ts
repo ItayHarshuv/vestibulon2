@@ -7,8 +7,8 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `vestibulon2_${name}`);
 
-export const userProfiles = createTable(
-  "user_profile",
+export const users = createTable(
+  "users",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     workosUserId: d.varchar("workos_user_id", { length: 256 }).notNull().unique(),
@@ -17,7 +17,7 @@ export const userProfiles = createTable(
     role: d.varchar("role", { length: 32 }).notNull().default("patient"),
     clinicianUserId: d
       .varchar("clinician_user_id", { length: 256 })
-      .references((): AnyPgColumn => userProfiles.workosUserId, {
+      .references((): AnyPgColumn => users.workosUserId, {
         onDelete: "set null",
       }),
     gender: d.varchar("gender", { length: 16 }),
@@ -34,11 +34,11 @@ export const userProfiles = createTable(
       .notNull(),
   }),
   (t) => [
-    index("user_profile_workos_user_idx").on(t.workosUserId),
-    index("user_profile_username_idx").on(t.username),
-    index("user_profile_email_idx").on(t.email),
-    index("user_profile_role_idx").on(t.role),
-    index("user_profile_clinician_user_idx").on(t.clinicianUserId),
+    index("users_workos_user_idx").on(t.workosUserId),
+    index("users_username_idx").on(t.username),
+    index("users_email_idx").on(t.email),
+    index("users_role_idx").on(t.role),
+    index("users_clinician_user_idx").on(t.clinicianUserId),
   ],
 );
 
@@ -49,7 +49,7 @@ export const programs = createTable(
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
-      .references(() => userProfiles.workosUserId),
+      .references(() => users.workosUserId),
     exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
@@ -103,7 +103,7 @@ export const programHistory = createTable(
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
-      .references(() => userProfiles.workosUserId, { onDelete: "cascade" }),
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
     exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
     numberOfRepetions: d.integer("number_of_repetions").notNull(),
     active: d.boolean("active").notNull(),
@@ -128,7 +128,7 @@ export const userSessionHistory = createTable(
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
-      .references(() => userProfiles.workosUserId, { onDelete: "cascade" }),
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
     numberOfSessions: d.integer("number_of_sessions").notNull(),
     effectiveFrom: d
       .timestamp("effective_from", { withTimezone: true })
@@ -153,11 +153,11 @@ export const treatmentPlans = createTable(
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
-      .references(() => userProfiles.workosUserId, { onDelete: "cascade" }),
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
     createdBy: d
       .varchar("created_by", { length: 256 })
       .notNull()
-      .references(() => userProfiles.workosUserId, { onDelete: "restrict" }),
+      .references(() => users.workosUserId, { onDelete: "restrict" }),
     numberOfSessions: d.integer("number_of_sessions").notNull(),
     effectiveFrom: d
       .timestamp("effective_from", { withTimezone: true })
@@ -202,7 +202,7 @@ export const todayReps = createTable(
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
-      .references(() => userProfiles.workosUserId, {
+      .references(() => users.workosUserId, {
         onDelete: "cascade",
       }),
     practiceTime: d
@@ -220,9 +220,9 @@ export const todayReps = createTable(
 );
 
 export const programsRelations = relations(programs, ({ many, one }) => ({
-  user: one(userProfiles, {
+  user: one(users, {
     fields: [programs.userId],
-    references: [userProfiles.workosUserId],
+    references: [users.workosUserId],
   }),
   reps: many(reps),
   history: many(programHistory),
@@ -236,9 +236,9 @@ export const programHistoryRelations = relations(programHistory, ({ one }) => ({
 }));
 
 export const userSessionHistoryRelations = relations(userSessionHistory, ({ one }) => ({
-  user: one(userProfiles, {
+  user: one(users, {
     fields: [userSessionHistory.userId],
-    references: [userProfiles.workosUserId],
+    references: [users.workosUserId],
   }),
 }));
 
@@ -250,13 +250,13 @@ export const repsRelations = relations(reps, ({ one }) => ({
 }));
 
 export const treatmentPlansRelations = relations(treatmentPlans, ({ one, many }) => ({
-  user: one(userProfiles, {
+  user: one(users, {
     fields: [treatmentPlans.userId],
-    references: [userProfiles.workosUserId],
+    references: [users.workosUserId],
   }),
-  createdByUser: one(userProfiles, {
+  createdByUser: one(users, {
     fields: [treatmentPlans.createdBy],
-    references: [userProfiles.workosUserId],
+    references: [users.workosUserId],
     relationName: "treatment_plan_creator",
   }),
   exercises: many(treatmentPlanExercises),
@@ -272,13 +272,13 @@ export const treatmentPlanExercisesRelations = relations(
   }),
 );
 
-export const userProfilesRelations = relations(userProfiles, ({ many, one }) => ({
-  clinician: one(userProfiles, {
-    fields: [userProfiles.clinicianUserId],
-    references: [userProfiles.workosUserId],
+export const usersRelations = relations(users, ({ many, one }) => ({
+  clinician: one(users, {
+    fields: [users.clinicianUserId],
+    references: [users.workosUserId],
     relationName: "clinician_patients",
   }),
-  patients: many(userProfiles, {
+  patients: many(users, {
     relationName: "clinician_patients",
   }),
   programs: many(programs),

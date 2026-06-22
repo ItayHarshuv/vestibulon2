@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { programs, todayReps, userProfiles } from "./db/schema.js";
+import { programs, todayReps, users } from "./db/schema.js";
 
 function getTimeZoneParts(date: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -198,10 +198,10 @@ export async function ensureTodayRepsForUser(
 
   const userProfileRows = await db
     .select({
-      numberOfSessions: userProfiles.numberOfSessions,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.workosUserId, userId))
+    .from(users)
+    .where(eq(users.workosUserId, userId))
     .limit(1);
 
   const numberOfSessions = Math.max(userProfileRows[0]?.numberOfSessions ?? 1, 1);
@@ -413,10 +413,10 @@ export async function applyTreatmentPlanToTodaySchedule(
 
   const userProfileRows = await db
     .select({
-      numberOfSessions: userProfiles.numberOfSessions,
+      numberOfSessions: users.numberOfSessions,
     })
-    .from(userProfiles)
-    .where(eq(userProfiles.workosUserId, userId))
+    .from(users)
+    .where(eq(users.workosUserId, userId))
     .limit(1);
 
   const numberOfSessions = Math.max(userProfileRows[0]?.numberOfSessions ?? 1, 1);

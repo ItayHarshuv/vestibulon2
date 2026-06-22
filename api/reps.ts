@@ -7,7 +7,7 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { programs, reps, todayReps, userProfiles } from "./db/schema.js";
+import { programs, reps, todayReps, users } from "./db/schema.js";
 import {
   assignRepToTodayRepSlot,
   ensureTodayRepsForUser,
@@ -271,11 +271,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const updatedProfile = await db
-          .update(userProfiles)
+          .update(users)
           .set({
-            points: sql`${userProfiles.points} + ${pointsAwarded}`,
+            points: sql`${users.points} + ${pointsAwarded}`,
           })
-          .where(eq(userProfiles.workosUserId, authenticatedUserId))
+          .where(eq(users.workosUserId, authenticatedUserId))
           .returning();
 
         totalPoints = updatedProfile[0]?.points ?? null;
