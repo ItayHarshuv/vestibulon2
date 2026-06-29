@@ -5,11 +5,11 @@ import { Metronome } from "~/components/Metronome";
 import { getExerciseTemplateByName } from "~/data/content";
 import { apiFetch } from "~/lib/api";
 import {
-  type ApiProgram,
+  type ApiPrescribedExercise,
   createRepResponseSchema,
   getZodErrorMessage,
-  programRouteParamsSchema,
-  programsResponseSchema,
+  prescribedExerciseRouteParamsSchema,
+  prescribedExercisesResponseSchema,
   todayRepsResponseSchema,
   updateRepResponseSchema,
 } from "~/lib/validation";
@@ -29,8 +29,8 @@ export function WorkoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { programId } = useParams<{ programId: string }>();
-  const [program, setProgram] = useState<ApiProgram | null>(null);
+  const { prescribedExerciseId } = useParams<{ prescribedExerciseId: string }>();
+  const [prescribedExercise, setPrescribedExercise] = useState<ApiPrescribedExercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -46,14 +46,14 @@ export function WorkoutPage() {
   const hasPausedInRepRef = useRef(false);
   const hasNavigatedToFinishRef = useRef(false);
   const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
-  const initializedProgramIdRef = useRef<number | null>(null);
+  const initializedPrescribedExerciseIdRef = useRef<number | null>(null);
 
   const routeParamsResult = useMemo(
-    () => programRouteParamsSchema.safeParse({ programId }),
-    [programId],
+    () => prescribedExerciseRouteParamsSchema.safeParse({ prescribedExerciseId }),
+    [prescribedExerciseId],
   );
-  const parsedProgramId = routeParamsResult.success
-    ? routeParamsResult.data.programId
+  const parsedPrescribedExerciseId = routeParamsResult.success
+    ? routeParamsResult.data.prescribedExerciseId
     : null;
   const requestedPracticeTimeKey = useMemo(() => {
     const practiceTimeKey = searchParams.get("practiceTimeKey");
@@ -62,35 +62,35 @@ export function WorkoutPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user || parsedProgramId === null) {
-      setProgram(null);
+    if (!user || parsedPrescribedExerciseId === null) {
+      setPrescribedExercise(null);
       setLoading(false);
       return;
     }
 
-    async function fetchProgram() {
+    async function fetchPrescribedExercise() {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await apiFetch("/api/programs");
+        const response = await apiFetch("/api/prescribed-exercises");
 
         if (!response.ok) {
-          throw new Error("Failed to fetch programs");
+          throw new Error("Failed to fetch prescribed exercises");
         }
 
-        const dataResult = programsResponseSchema.safeParse(
+        const dataResult = prescribedExercisesResponseSchema.safeParse(
           await response.json(),
         );
         if (!dataResult.success) {
           throw new Error(
-            getZodErrorMessage(dataResult.error, "Invalid programs response"),
+            getZodErrorMessage(dataResult.error, "Invalid prescribed exercises response"),
           );
         }
 
-        const selectedProgram =
-          dataResult.data.find((item) => item.id === parsedProgramId) ?? null;
-        setProgram(selectedProgram);
+        const selectedPrescribedExercise =
+          dataResult.data.find((item) => item.id === parsedPrescribedExerciseId) ?? null;
+        setPrescribedExercise(selectedPrescribedExercise);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -98,20 +98,20 @@ export function WorkoutPage() {
       }
     }
 
-    void fetchProgram();
-  }, [isLoading, parsedProgramId, user]);
+    void fetchPrescribedExercise();
+  }, [isLoading, parsedPrescribedExerciseId, user]);
 
   useEffect(() => {
-    if (!program) {
-      initializedProgramIdRef.current = null;
+    if (!prescribedExercise) {
+      initializedPrescribedExerciseIdRef.current = null;
       return;
     }
-    if (initializedProgramIdRef.current === program.id) return;
+    if (initializedPrescribedExerciseIdRef.current === prescribedExercise.id) return;
 
-    initializedProgramIdRef.current = program.id;
+    initializedPrescribedExerciseIdRef.current = prescribedExercise.id;
 
-    setRemainingSeconds(program.numberOfSeconds);
-    setCurrentBpm(program.metronomeBpmTemp ?? program.metronomeBpm);
+    setRemainingSeconds(prescribedExercise.numberOfSeconds);
+    setCurrentBpm(prescribedExercise.metronomeBpmTemp ?? prescribedExercise.metronomeBpm);
     setIsPaused(false);
     hasLoggedCountdownEndRef.current = false;
     hasCreatedRepRef.current = false;
@@ -121,10 +121,10 @@ export function WorkoutPage() {
     setCurrentRepNumber(1);
     setWorkoutStartTimestampMs(null);
     fallbackWorkoutStartTimestampRef.current = Date.now();
-  }, [program]);
+  }, [prescribedExercise]);
 
   useEffect(() => {
-    if (!program || isLoading || !user) return;
+    if (!prescribedExercise || isLoading || !user) return;
 
     void (async () => {
       try {
@@ -192,24 +192,24 @@ export function WorkoutPage() {
 
         const completedCurrentExerciseReps = todayRepsResult.data.filter(
           (row) =>
-            row.exerciseName === program.exerciseName &&
+            row.exerciseName === prescribedExercise.exerciseName &&
             getPracticeTimeKey(new Date(row.practiceTime)) ===
               selectedSessionPracticeTimeKey &&
             row.repId !== null,
         ).length;
 
         setCurrentRepNumber(
-          Math.min(completedCurrentExerciseReps + 1, program.numberOfRepetions),
+          Math.min(completedCurrentExerciseReps + 1, prescribedExercise.numberOfRepetions),
         );
       } catch (fetchError) {
         console.error("Error loading workout rep number:", fetchError);
         setCurrentRepNumber(1);
       }
     })();
-  }, [isLoading, program, requestedPracticeTimeKey, user]);
+  }, [isLoading, prescribedExercise, requestedPracticeTimeKey, user]);
 
   useEffect(() => {
-    if (!program || isPaused || remainingSeconds <= 0) return;
+    if (!prescribedExercise || isPaused || remainingSeconds <= 0) return;
 
     const timerId = window.setInterval(() => {
       setRemainingSeconds((previousSeconds) =>
@@ -220,12 +220,12 @@ export function WorkoutPage() {
     return () => {
       window.clearInterval(timerId);
     };
-  }, [isPaused, program, remainingSeconds]);
+  }, [isPaused, prescribedExercise, remainingSeconds]);
 
   useEffect(() => {
-    if (!program || isLoading || !user || hasCreatedRepRef.current) return;
+    if (!prescribedExercise || isLoading || !user || hasCreatedRepRef.current) return;
 
-    const startKey = `${location.key}:${program.id}`;
+    const startKey = `${location.key}:${prescribedExercise.id}`;
     if (startedWorkoutKeys.has(startKey)) return;
 
     hasCreatedRepRef.current = true;
@@ -236,7 +236,7 @@ export function WorkoutPage() {
         const response = await apiFetch("/api/reps", {
           method: "POST",
           body: JSON.stringify({
-            programId: program.id,
+            prescribedExerciseId: prescribedExercise.id,
             practiceTimeKey: requestedPracticeTimeKey ?? undefined,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
@@ -269,11 +269,11 @@ export function WorkoutPage() {
         console.error("Error creating rep record:", err);
       }
     })();
-  }, [isLoading, location.key, program, requestedPracticeTimeKey, user]);
+  }, [isLoading, location.key, prescribedExercise, requestedPracticeTimeKey, user]);
 
   useEffect(() => {
     if (
-      !program ||
+      !prescribedExercise ||
       remainingSeconds !== 0 ||
       hasLoggedCountdownEndRef.current ||
       hasNavigatedToFinishRef.current
@@ -285,7 +285,7 @@ export function WorkoutPage() {
     hasLoggedCountdownEndRef.current = true;
 
     const completedBpm = currentBpm;
-    const durationSeconds = program.numberOfSeconds;
+    const durationSeconds = prescribedExercise.numberOfSeconds;
     const flagPaused = hasPausedInRepRef.current;
 
     void (async () => {
@@ -323,8 +323,8 @@ export function WorkoutPage() {
           durationSeconds * 1000;
         const nextUrl =
           requestedPracticeTimeKey === null
-            ? `/workout-finish/${program.id}/${activeRepId}`
-            : `/workout-finish/${program.id}/${activeRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+            ? `/workout-finish/${prescribedExercise.id}/${activeRepId}`
+            : `/workout-finish/${prescribedExercise.id}/${activeRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
         void navigate(nextUrl, {
           state: {
             workoutEndTimestampMs: completedWorkoutEndTimestampMs,
@@ -339,37 +339,37 @@ export function WorkoutPage() {
     activeRepId,
     currentBpm,
     navigate,
-    program,
+    prescribedExercise,
     requestedPracticeTimeKey,
     remainingSeconds,
     workoutStartTimestampMs,
   ]);
 
   const exerciseTemplate = useMemo(() => {
-    if (!program) return null;
-    return getExerciseTemplateByName(program.exerciseName);
-  }, [program]);
+    if (!prescribedExercise) return null;
+    return getExerciseTemplateByName(prescribedExercise.exerciseName);
+  }, [prescribedExercise]);
 
   const handleMetronomeBpmChange = useCallback(
     (nextBpm: number) => {
       setCurrentBpm(nextBpm);
 
-      if (!program || !user) return;
+      if (!prescribedExercise || !user) return;
 
-      setProgram((previousProgram) => {
-        if (!previousProgram) return previousProgram;
+      setPrescribedExercise((previousPrescribedExercise) => {
+        if (!previousPrescribedExercise) return previousPrescribedExercise;
         return {
-          ...previousProgram,
+          ...previousPrescribedExercise,
           metronomeBpmTemp: nextBpm,
         };
       });
 
       void (async () => {
         try {
-          const response = await apiFetch("/api/programs", {
+          const response = await apiFetch("/api/prescribed-exercises", {
             method: "PATCH",
             body: JSON.stringify({
-              programId: program.id,
+              prescribedExerciseId: prescribedExercise.id,
               metronomeBpmTemp: nextBpm,
             }),
           });
@@ -382,7 +382,7 @@ export function WorkoutPage() {
         }
       })();
     },
-    [program, user],
+    [prescribedExercise, user],
   );
 
   if (loading) {
@@ -409,7 +409,7 @@ export function WorkoutPage() {
     );
   }
 
-  if (!program || !exerciseTemplate) {
+  if (!prescribedExercise || !exerciseTemplate) {
     return (
       <main
         dir="rtl"
@@ -430,11 +430,11 @@ export function WorkoutPage() {
       className="mx-auto min-h-[calc(100vh-4rem)] w-full max-w-4xl bg-white px-4 py-8 sm:px-5"
     >
       <h1 className="text-center text-3xl font-bold text-gray-900">
-        {program.exerciseName}
+        {prescribedExercise.exerciseName}
       </h1>
 
       <p className="mt-6 text-center text-xl font-semibold text-gray-900">
-        תרגול {currentRepNumber} מתוך {program.numberOfRepetions}
+        תרגול {currentRepNumber} מתוך {prescribedExercise.numberOfRepetions}
       </p>
 
       <p className="mt-6 text-center text-4xl font-bold text-gray-900">
@@ -472,7 +472,7 @@ export function WorkoutPage() {
 
       <img
         src={exerciseTemplate.exImage}
-        alt={`איור עבור ${program.exerciseName}`}
+        alt={`איור עבור ${prescribedExercise.exerciseName}`}
         className="mx-auto mt-12 w-full max-w-md object-contain"
       />
 

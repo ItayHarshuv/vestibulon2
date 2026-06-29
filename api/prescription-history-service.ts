@@ -1,58 +1,58 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "./db/index.js";
 import {
-  programHistory,
-  programs,
+  prescribedExerciseHistory,
+  prescribedExercises,
   users,
   userSessionHistory,
 } from "./db/schema.js";
 
-export async function recordProgramHistorySnapshot(
-  programId: number,
+export async function recordPrescribedExerciseHistorySnapshot(
+  prescribedExerciseId: number,
   effectiveFrom: Date = new Date(),
 ) {
   const rows = await db
     .select({
-      id: programs.id,
-      userId: programs.userId,
-      exerciseName: programs.exerciseName,
-      numberOfRepetions: programs.numberOfRepetions,
-      active: programs.active,
+      id: prescribedExercises.id,
+      userId: prescribedExercises.userId,
+      exerciseName: prescribedExercises.exerciseName,
+      numberOfRepetions: prescribedExercises.numberOfRepetions,
+      active: prescribedExercises.active,
     })
-    .from(programs)
-    .where(eq(programs.id, programId))
+    .from(prescribedExercises)
+    .where(eq(prescribedExercises.id, prescribedExerciseId))
     .limit(1);
 
-  const program = rows[0];
-  if (!program) {
+  const prescribedExercise = rows[0];
+  if (!prescribedExercise) {
     return;
   }
 
   const latestHistory = await db
     .select({
-      numberOfRepetions: programHistory.numberOfRepetions,
-      active: programHistory.active,
-      exerciseName: programHistory.exerciseName,
+      numberOfRepetions: prescribedExerciseHistory.numberOfRepetions,
+      active: prescribedExerciseHistory.active,
+      exerciseName: prescribedExerciseHistory.exerciseName,
     })
-    .from(programHistory)
-    .where(eq(programHistory.programId, programId))
-    .orderBy(asc(programHistory.effectiveFrom), asc(programHistory.id));
+    .from(prescribedExerciseHistory)
+    .where(eq(prescribedExerciseHistory.prescribedExerciseId, prescribedExerciseId))
+    .orderBy(asc(prescribedExerciseHistory.effectiveFrom), asc(prescribedExerciseHistory.id));
 
   const lastSnapshot = latestHistory[latestHistory.length - 1];
   if (
-    lastSnapshot?.numberOfRepetions === program.numberOfRepetions &&
-    lastSnapshot.active === program.active &&
-    lastSnapshot.exerciseName === program.exerciseName
+    lastSnapshot?.numberOfRepetions === prescribedExercise.numberOfRepetions &&
+    lastSnapshot.active === prescribedExercise.active &&
+    lastSnapshot.exerciseName === prescribedExercise.exerciseName
   ) {
     return;
   }
 
-  await db.insert(programHistory).values({
-    programId: program.id,
-    userId: program.userId,
-    exerciseName: program.exerciseName,
-    numberOfRepetions: program.numberOfRepetions,
-    active: program.active,
+  await db.insert(prescribedExerciseHistory).values({
+    prescribedExerciseId: prescribedExercise.id,
+    userId: prescribedExercise.userId,
+    exerciseName: prescribedExercise.exerciseName,
+    numberOfRepetions: prescribedExercise.numberOfRepetions,
+    active: prescribedExercise.active,
     effectiveFrom,
   });
 }
@@ -111,33 +111,33 @@ export async function ensurePrescriptionHistoryForUser(userId: string) {
     });
   }
 
-  const userPrograms = await db
+  const userPrescribedExercises = await db
     .select({
-      id: programs.id,
-      createdAt: programs.createdAt,
+      id: prescribedExercises.id,
+      createdAt: prescribedExercises.createdAt,
     })
-    .from(programs)
-    .where(eq(programs.userId, userId));
+    .from(prescribedExercises)
+    .where(eq(prescribedExercises.userId, userId));
 
-  if (userPrograms.length === 0) {
+  if (userPrescribedExercises.length === 0) {
     return;
   }
 
-  const programIds = userPrograms.map((program) => program.id);
-  const existingProgramHistory = await db
-    .select({ programId: programHistory.programId })
-    .from(programHistory)
-    .where(inArray(programHistory.programId, programIds));
+  const prescribedExerciseIds = userPrescribedExercises.map((prescribedExercise) => prescribedExercise.id);
+  const existingPrescribedExerciseHistory = await db
+    .select({ prescribedExerciseId: prescribedExerciseHistory.prescribedExerciseId })
+    .from(prescribedExerciseHistory)
+    .where(inArray(prescribedExerciseHistory.prescribedExerciseId, prescribedExerciseIds));
 
-  const programIdsWithHistory = new Set(
-    existingProgramHistory.map((row) => row.programId),
+  const prescribedExerciseIdsWithHistory = new Set(
+    existingPrescribedExerciseHistory.map((row) => row.prescribedExerciseId),
   );
 
-  for (const program of userPrograms) {
-    if (programIdsWithHistory.has(program.id)) {
+  for (const prescribedExercise of userPrescribedExercises) {
+    if (prescribedExerciseIdsWithHistory.has(prescribedExercise.id)) {
       continue;
     }
 
-    await recordProgramHistorySnapshot(program.id, program.createdAt);
+    await recordPrescribedExerciseHistorySnapshot(prescribedExercise.id, prescribedExercise.createdAt);
   }
 }

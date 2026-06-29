@@ -8,61 +8,61 @@ import {
 } from "~/data/content";
 import { apiFetch } from "~/lib/api";
 import {
-  type ApiProgram,
+  type ApiPrescribedExercise,
   getZodErrorMessage,
-  programRouteParamsSchema,
-  programsResponseSchema,
+  prescribedExerciseRouteParamsSchema,
+  prescribedExercisesResponseSchema,
 } from "~/lib/validation";
 
 export function ExerciseDescriptionPage() {
   const { isLoading, user } = useAuth();
-  const { programId } = useParams<{ programId: string }>();
+  const { prescribedExerciseId } = useParams<{ prescribedExerciseId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [program, setProgram] = useState<ApiProgram | null>(null);
+  const [prescribedExercise, setPrescribedExercise] = useState<ApiPrescribedExercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const practiceTimeKey = searchParams.get("practiceTimeKey");
 
   const routeParamsResult = useMemo(
-    () => programRouteParamsSchema.safeParse({ programId }),
-    [programId],
+    () => prescribedExerciseRouteParamsSchema.safeParse({ prescribedExerciseId }),
+    [prescribedExerciseId],
   );
-  const parsedProgramId = routeParamsResult.success
-    ? routeParamsResult.data.programId
+  const parsedPrescribedExerciseId = routeParamsResult.success
+    ? routeParamsResult.data.prescribedExerciseId
     : null;
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user || parsedProgramId === null) {
+    if (!user || parsedPrescribedExerciseId === null) {
       setLoading(false);
-      setProgram(null);
+      setPrescribedExercise(null);
       return;
     }
 
-    async function fetchProgram() {
+    async function fetchPrescribedExercise() {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await apiFetch("/api/programs");
+        const response = await apiFetch("/api/prescribed-exercises");
 
         if (!response.ok) {
-          throw new Error("Failed to fetch programs");
+          throw new Error("Failed to fetch prescribed exercises");
         }
 
-        const dataResult = programsResponseSchema.safeParse(
+        const dataResult = prescribedExercisesResponseSchema.safeParse(
           await response.json(),
         );
         if (!dataResult.success) {
           throw new Error(
-            getZodErrorMessage(dataResult.error, "Invalid programs response"),
+            getZodErrorMessage(dataResult.error, "Invalid prescribed exercises response"),
           );
         }
 
-        const selectedProgram =
-          dataResult.data.find((item) => item.id === parsedProgramId) ?? null;
-        setProgram(selectedProgram);
+        const selectedPrescribedExercise =
+          dataResult.data.find((item) => item.id === parsedPrescribedExerciseId) ?? null;
+        setPrescribedExercise(selectedPrescribedExercise);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -70,13 +70,13 @@ export function ExerciseDescriptionPage() {
       }
     }
 
-    void fetchProgram();
-  }, [isLoading, parsedProgramId, user]);
+    void fetchPrescribedExercise();
+  }, [isLoading, parsedPrescribedExerciseId, user]);
 
   const exerciseTemplate = useMemo(() => {
-    if (!program) return null;
-    return getExerciseTemplateByName(program.exerciseName);
-  }, [program]);
+    if (!prescribedExercise) return null;
+    return getExerciseTemplateByName(prescribedExercise.exerciseName);
+  }, [prescribedExercise]);
 
   const gender = useMemo<Gender>(() => {
     return user?.gender ?? "male";
@@ -114,7 +114,7 @@ export function ExerciseDescriptionPage() {
     );
   }
 
-  if (!program || !exerciseTemplate) {
+  if (!prescribedExercise || !exerciseTemplate) {
     return (
       <main
         dir="rtl"
@@ -133,7 +133,7 @@ export function ExerciseDescriptionPage() {
       className="mx-auto min-h-[calc(100vh-4rem)] w-full max-w-4xl bg-white px-4 py-8 sm:px-5"
     >
       <h1 className="text-center text-4xl font-bold text-gray-900">
-        תרגיל {program.exerciseName}
+        תרגיל {prescribedExercise.exerciseName}
       </h1>
 
       <div className="mt-10 flex justify-center">
@@ -142,8 +142,8 @@ export function ExerciseDescriptionPage() {
           onClick={() => {
             const nextUrl =
               practiceTimeKey === null
-                ? `/workout/${program.id}`
-                : `/workout/${program.id}?practiceTimeKey=${encodeURIComponent(practiceTimeKey)}`;
+                ? `/workout/${prescribedExercise.id}`
+                : `/workout/${prescribedExercise.id}?practiceTimeKey=${encodeURIComponent(practiceTimeKey)}`;
             void navigate(nextUrl);
           }}
           className="rounded-lg bg-green-500 px-12 py-4 text-4xl font-bold text-white transition hover:bg-green-600"
@@ -153,11 +153,11 @@ export function ExerciseDescriptionPage() {
       </div>
 
       <section className="mt-10 text-right text-3xl leading-relaxed font-semibold text-gray-900">
-        <p>מנח: {program.position}</p>
-        <p>סביבת תרגול: {program.background}</p>
-        <p>משך: {program.numberOfSeconds}</p>
-        <p>מספר חזרות: {program.numberOfRepetions}</p>
-        <p>עוצמת סימפטומים: עד {program.recomendedVAS} מתוך 10</p>
+        <p>מנח: {prescribedExercise.position}</p>
+        <p>סביבת תרגול: {prescribedExercise.background}</p>
+        <p>משך: {prescribedExercise.numberOfSeconds}</p>
+        <p>מספר חזרות: {prescribedExercise.numberOfRepetions}</p>
+        <p>עוצמת סימפטומים: עד {prescribedExercise.recomendedVAS} מתוך 10</p>
       </section>
 
       <section
@@ -169,7 +169,7 @@ export function ExerciseDescriptionPage() {
 
       <img
         src={exerciseTemplate.exImage}
-        alt={`איור עבור ${program.exerciseName}`}
+        alt={`איור עבור ${prescribedExercise.exerciseName}`}
         className="mt-10 w-full rounded-md object-contain"
       />
     </main>

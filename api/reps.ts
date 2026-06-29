@@ -7,7 +7,7 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { programs, reps, todayReps, users } from "./db/schema.js";
+import { prescribedExercises, reps, todayReps, users } from "./db/schema.js";
 import {
   assignRepToTodayRepSlot,
   ensureTodayRepsForUser,
@@ -81,24 +81,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const { practiceTimeKey, programId, timeZone } = bodyResult.data;
-      const matchingPrograms = await db
+      const { practiceTimeKey, prescribedExerciseId, timeZone } = bodyResult.data;
+      const matchingPrescribedExercises = await db
         .select({
-          id: programs.id,
-          exerciseName: programs.exerciseName,
+          id: prescribedExercises.id,
+          exerciseName: prescribedExercises.exerciseName,
         })
-        .from(programs)
+        .from(prescribedExercises)
         .where(
           and(
-            eq(programs.id, programId),
-            eq(programs.userId, authenticatedUserId),
+            eq(prescribedExercises.id, prescribedExerciseId),
+            eq(prescribedExercises.userId, authenticatedUserId),
           ),
         )
         .limit(1);
 
-      const program = matchingPrograms[0];
-      if (!program) {
-        res.status(404).json({ error: "Program not found" });
+      const prescribedExercise = matchingPrescribedExercises[0];
+      if (!prescribedExercise) {
+        res.status(404).json({ error: "Prescribed exercise not found" });
         return;
       }
 
@@ -109,9 +109,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const inserted = await db
         .insert(reps)
         .values({
-          programId: program.id,
+          prescribedExerciseId: prescribedExercise.id,
           userId: authenticatedUserId,
-          exerciseName: program.exerciseName,
+          exerciseName: prescribedExercise.exerciseName,
           startTime: now,
         })
         .returning();
@@ -124,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const assigned = await assignRepToTodayRepSlot(
         authenticatedUserId,
-        program.exerciseName,
+        prescribedExercise.exerciseName,
         createdRep.id,
         timeZone,
         practiceTimeKey,

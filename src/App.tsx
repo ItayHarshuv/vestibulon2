@@ -153,7 +153,7 @@ export function App() {
             }
           />
           <Route
-            path="/exercise-description/:programId"
+            path="/exercise-description/:prescribedExerciseId"
             element={
               <AuthGate>
                 <ExerciseDescriptionPage />
@@ -169,7 +169,7 @@ export function App() {
             }
           />
           <Route
-            path="/workout/:programId"
+            path="/workout/:prescribedExerciseId"
             element={
               <AuthGate>
                 <WorkoutPage />
@@ -177,7 +177,7 @@ export function App() {
             }
           />
           <Route
-            path="/workout-finish/:programId/:repId"
+            path="/workout-finish/:prescribedExerciseId/:repId"
             element={
               <AuthGate>
                 <WorkoutFinishPage />
@@ -185,7 +185,7 @@ export function App() {
             }
           />
           <Route
-            path="/workout-rest/:programId/:repId"
+            path="/workout-rest/:prescribedExerciseId/:repId"
             element={
               <AuthGate>
                 <WorkoutRestPage />

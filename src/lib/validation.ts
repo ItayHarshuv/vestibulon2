@@ -143,12 +143,12 @@ export const updateProfileSchema = z.preprocess(
     }),
 );
 
-export const programRouteParamsSchema = z.object({
-  programId: integerRouteParam("programId must be an integer"),
+export const prescribedExerciseRouteParamsSchema = z.object({
+  prescribedExerciseId: integerRouteParam("prescribedExerciseId must be an integer"),
 });
 
 export const workoutFinishRouteParamsSchema = z.object({
-  programId: integerRouteParam("programId must be an integer"),
+  prescribedExerciseId: integerRouteParam("prescribedExerciseId must be an integer"),
   repId: integerRouteParam("repId must be an integer"),
 });
 
@@ -164,7 +164,7 @@ export const profileQuerySchema = z.preprocess(
   }),
 );
 
-export const programsQuerySchema = z.preprocess(
+export const prescribedExercisesQuerySchema = z.preprocess(
   coerceObject,
   z.object({
     userId: optionalUserIdField("userId must be a string"),
@@ -210,15 +210,15 @@ export const exerciseStatisticsResponseSchema = z.object({
   exercises: z.array(exerciseStatisticsSeriesSchema),
 });
 
-export const updateProgramBodySchema = z.preprocess(
+export const updatePrescribedExerciseBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    programId: integerField("programId must be an integer"),
+    prescribedExerciseId: integerField("prescribedExerciseId must be an integer"),
     metronomeBpmTemp: integerField("metronomeBpmTemp must be an integer"),
   }),
 );
 
-export const apiProgramSchema = z.object({
+export const apiPrescribedExerciseSchema = z.object({
   id: z.number().int(),
   exerciseName: z.string(),
   numberOfSeconds: z.number().int(),
@@ -230,7 +230,7 @@ export const apiProgramSchema = z.object({
   recomendedVAS: z.number().int(),
 });
 
-export const programsResponseSchema = z.array(apiProgramSchema);
+export const prescribedExercisesResponseSchema = z.array(apiPrescribedExerciseSchema);
 
 export const treatmentPlanQuerySchema = z.preprocess(
   coerceObject,
@@ -294,7 +294,7 @@ export const saveTreatmentPlanBodySchema = z.preprocess(
 
 export const treatmentPlanExerciseSchema = treatmentPlanExerciseInputSchema.extend({
   id: z.number().int().optional(),
-  programId: z.number().int().optional(),
+  prescribedExerciseId: z.number().int().optional(),
 });
 
 export const treatmentPlanResponseSchema = z.object({
@@ -313,7 +313,7 @@ export const treatmentPlanResponseSchema = z.object({
 export const saveTreatmentPlanResponseSchema = z.object({
   planId: z.number().int(),
   numberOfSessions: z.number().int(),
-  exercises: z.array(apiProgramSchema),
+  exercises: z.array(apiPrescribedExerciseSchema),
 });
 
 const practiceTimeKeySchema = z
@@ -326,7 +326,7 @@ const practiceTimeKeySchema = z
 export const createRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    programId: integerField("programId is required"),
+    prescribedExerciseId: integerField("prescribedExerciseId is required"),
     timeZone: requiredTrimmedString("timeZone is required"),
     practiceTimeKey: practiceTimeKeySchema.optional(),
   }),
@@ -470,12 +470,12 @@ export const todayRepRowSchema = z.object({
 export const todayRepsResponseSchema = z.array(todayRepRowSchema);
 export const repsResponseSchema = z.array(apiRepSummarySchema);
 
-export type ApiProgram = z.infer<typeof apiProgramSchema>;
+export type ApiPrescribedExercise = z.infer<typeof apiPrescribedExerciseSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;
 export type ClinicianPatient = z.infer<typeof clinicianPatientSchema>;
 export type SignInForm = z.infer<typeof signInFormSchema>;
 export type SignUpForm = z.infer<typeof signUpFormSchema>;
-export type UpdateProgramBody = z.infer<typeof updateProgramBodySchema>;
+export type UpdatePrescribedExerciseBody = z.infer<typeof updatePrescribedExerciseBodySchema>;
 export type CreateRepBody = z.infer<typeof createRepBodySchema>;
 export type UpdateRepBody = z.infer<typeof updateRepBodySchema>;
 export type UpdateRepResponse = z.infer<typeof updateRepResponseSchema>;

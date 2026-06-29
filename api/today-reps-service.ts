@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { programs, todayReps, users } from "./db/schema.js";
+import { prescribedExercises, todayReps, users } from "./db/schema.js";
 
 function getTimeZoneParts(date: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -206,14 +206,14 @@ export async function ensureTodayRepsForUser(
 
   const numberOfSessions = Math.max(userProfileRows[0]?.numberOfSessions ?? 1, 1);
 
-  const activePrograms = await db
+  const activePrescribedExercises = await db
     .select({
-      exerciseName: programs.exerciseName,
-      numberOfRepetions: programs.numberOfRepetions,
+      exerciseName: prescribedExercises.exerciseName,
+      numberOfRepetions: prescribedExercises.numberOfRepetions,
     })
-    .from(programs)
-    .where(and(eq(programs.userId, userId), eq(programs.active, true)))
-    .orderBy(programs.createdAt, programs.id);
+    .from(prescribedExercises)
+    .where(and(eq(prescribedExercises.userId, userId), eq(prescribedExercises.active, true)))
+    .orderBy(prescribedExercises.createdAt, prescribedExercises.id);
 
   const existingTodayRows = existingRows.filter(
     (row) => getDateKeyInTimeZone(row.practiceTime, timeZone) === todayKey,
@@ -226,10 +226,10 @@ export async function ensureTodayRepsForUser(
     existingTodaySessionPracticeTimes.length === numberOfSessions
       ? existingTodaySessionPracticeTimes
       : buildPracticeTimes(numberOfSessions, timeZone);
-  const scheduledRows = activePrograms.flatMap((program) =>
+  const scheduledRows = activePrescribedExercises.flatMap((prescribedExercise) =>
     sessionPracticeTimes.flatMap((practiceTime) =>
-      Array.from({ length: program.numberOfRepetions }, () => ({
-        exerciseName: program.exerciseName,
+      Array.from({ length: prescribedExercise.numberOfRepetions }, () => ({
+        exerciseName: prescribedExercise.exerciseName,
         practiceTime,
       })),
     ),
@@ -421,14 +421,14 @@ export async function applyTreatmentPlanToTodaySchedule(
 
   const numberOfSessions = Math.max(userProfileRows[0]?.numberOfSessions ?? 1, 1);
 
-  const activePrograms = await db
+  const activePrescribedExercises = await db
     .select({
-      exerciseName: programs.exerciseName,
-      numberOfRepetions: programs.numberOfRepetions,
+      exerciseName: prescribedExercises.exerciseName,
+      numberOfRepetions: prescribedExercises.numberOfRepetions,
     })
-    .from(programs)
-    .where(and(eq(programs.userId, userId), eq(programs.active, true)))
-    .orderBy(programs.createdAt, programs.id);
+    .from(prescribedExercises)
+    .where(and(eq(prescribedExercises.userId, userId), eq(prescribedExercises.active, true)))
+    .orderBy(prescribedExercises.createdAt, prescribedExercises.id);
 
   if (todayRows.length === 0) {
     await ensureTodayRepsForUser(userId, timeZone);
@@ -470,15 +470,15 @@ export async function applyTreatmentPlanToTodaySchedule(
           Math.max(numberOfSessions - keptSessionTimes.length, 0),
         );
 
-  if (sessionTimesToSchedule.length === 0 || activePrograms.length === 0) {
+  if (sessionTimesToSchedule.length === 0 || activePrescribedExercises.length === 0) {
     return;
   }
 
-  const scheduledRows = activePrograms.flatMap((program) =>
+  const scheduledRows = activePrescribedExercises.flatMap((prescribedExercise) =>
     sessionTimesToSchedule.flatMap((practiceTime) =>
-      Array.from({ length: program.numberOfRepetions }, () => ({
+      Array.from({ length: prescribedExercise.numberOfRepetions }, () => ({
         userId,
-        exerciseName: program.exerciseName,
+        exerciseName: prescribedExercise.exerciseName,
         practiceTime,
       })),
     ),

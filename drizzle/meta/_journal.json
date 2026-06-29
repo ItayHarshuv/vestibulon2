@@ -78,6 +78,13 @@
       "when": 1782143098000,
       "tag": "0010_rename_user_profile_to_users",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782147015507,
+      "tag": "0011_rename_program_to_prescribed_exercises",
+      "breakpoints": true
     }
   ]
 }

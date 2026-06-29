@@ -42,8 +42,8 @@ export const users = createTable(
   ],
 );
 
-export const programs = createTable(
-  "program",
+export const prescribedExercises = createTable(
+  "prescribed_exercises",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     userId: d
@@ -64,14 +64,14 @@ export const programs = createTable(
     background: d.varchar("background", { length: 256 }).notNull(),
     recomendedVAS: d.integer("recomended_vas").notNull(),
   }),
-  (t) => [index("program_user_exercise_idx").on(t.userId, t.exerciseName)],
+  (t) => [index("prescribed_exercises_user_exercise_idx").on(t.userId, t.exerciseName)],
 );
 
 export const reps = createTable(
   "rep",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    programId: d.integer("program_id").references(() => programs.id, {
+    prescribedExerciseId: d.integer("prescribed_exercise_id").references(() => prescribedExercises.id, {
       onDelete: "cascade",
     }),
     userId: d.varchar("user_id", { length: 256 }).notNull(),
@@ -87,19 +87,19 @@ export const reps = createTable(
     flagPaused: d.boolean("flag_paused").default(false),
   }),
   (t) => [
-    index("rep_program_idx").on(t.programId),
+    index("rep_prescribed_exercise_idx").on(t.prescribedExerciseId),
     index("rep_user_exercise_idx").on(t.userId, t.exerciseName),
   ],
 );
 
-export const programHistory = createTable(
-  "program_history",
+export const prescribedExerciseHistory = createTable(
+  "prescribed_exercise_history",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    programId: d
-      .integer("program_id")
+    prescribedExerciseId: d
+      .integer("prescribed_exercise_id")
       .notNull()
-      .references(() => programs.id, { onDelete: "cascade" }),
+      .references(() => prescribedExercises.id, { onDelete: "cascade" }),
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
@@ -116,8 +116,8 @@ export const programHistory = createTable(
       .notNull(),
   }),
   (t) => [
-    index("program_history_program_effective_idx").on(t.programId, t.effectiveFrom),
-    index("program_history_user_exercise_idx").on(t.userId, t.exerciseName),
+    index("prescribed_exercise_history_prescribed_exercise_effective_idx").on(t.prescribedExerciseId, t.effectiveFrom),
+    index("prescribed_exercise_history_user_exercise_idx").on(t.userId, t.exerciseName),
   ],
 );
 
@@ -219,19 +219,19 @@ export const todayReps = createTable(
   ],
 );
 
-export const programsRelations = relations(programs, ({ many, one }) => ({
+export const prescribedExercisesRelations = relations(prescribedExercises, ({ many, one }) => ({
   user: one(users, {
-    fields: [programs.userId],
+    fields: [prescribedExercises.userId],
     references: [users.workosUserId],
   }),
   reps: many(reps),
-  history: many(programHistory),
+  history: many(prescribedExerciseHistory),
 }));
 
-export const programHistoryRelations = relations(programHistory, ({ one }) => ({
-  program: one(programs, {
-    fields: [programHistory.programId],
-    references: [programs.id],
+export const prescribedExerciseHistoryRelations = relations(prescribedExerciseHistory, ({ one }) => ({
+  prescribedExercise: one(prescribedExercises, {
+    fields: [prescribedExerciseHistory.prescribedExerciseId],
+    references: [prescribedExercises.id],
   }),
 }));
 
@@ -243,9 +243,9 @@ export const userSessionHistoryRelations = relations(userSessionHistory, ({ one 
 }));
 
 export const repsRelations = relations(reps, ({ one }) => ({
-  program: one(programs, {
-    fields: [reps.programId],
-    references: [programs.id],
+  prescribedExercise: one(prescribedExercises, {
+    fields: [reps.prescribedExerciseId],
+    references: [prescribedExercises.id],
   }),
 }));
 
@@ -281,7 +281,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   patients: many(users, {
     relationName: "clinician_patients",
   }),
-  programs: many(programs),
+  prescribedExercises: many(prescribedExercises),
   sessionHistory: many(userSessionHistory),
   treatmentPlans: many(treatmentPlans),
 }));

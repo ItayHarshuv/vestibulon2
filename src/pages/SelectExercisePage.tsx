@@ -4,7 +4,7 @@ import { useAuth } from "~/auth/AuthProvider";
 import { apiFetch } from "~/lib/api";
 import { getZodErrorMessage, todayRepsResponseSchema } from "~/lib/validation";
 
-interface Program {
+interface PrescribedExercise {
   id: number;
   exerciseName: string;
   numberOfSeconds: number;
@@ -41,9 +41,9 @@ export function SelectExercisePage() {
   const { isLoading, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [programs, setPrograms] = useState<Program[]>([]);
+  const [prescribedExercises, setPrescribedExercises] = useState<PrescribedExercise[]>([]);
   const [todayReps, setTodayReps] = useState<TodayRepRow[]>([]);
-  const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null);
+  const [selectedPrescribedExerciseId, setSelectedPrescribedExerciseId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestedPracticeTimeKey = useMemo(() => {
@@ -54,7 +54,7 @@ export function SelectExercisePage() {
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      setPrograms([]);
+      setPrescribedExercises([]);
       setTodayReps([]);
       setLoading(false);
       return;
@@ -66,20 +66,20 @@ export function SelectExercisePage() {
         setError(null);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-        const [programsResponse, todayRepsResponse] = await Promise.all([
-          apiFetch("/api/programs"),
+        const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
+          apiFetch("/api/prescribed-exercises"),
           apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
         ]);
 
-        if (!programsResponse.ok) {
-          throw new Error("Failed to fetch programs");
+        if (!prescribedExercisesResponse.ok) {
+          throw new Error("Failed to fetch prescribed exercises");
         }
 
         if (!todayRepsResponse.ok) {
           throw new Error("Failed to fetch today's reps");
         }
 
-        const programsData = (await programsResponse.json()) as Program[];
+        const prescribedExercisesData = (await prescribedExercisesResponse.json()) as PrescribedExercise[];
         const todayRepsResult = todayRepsResponseSchema.safeParse(await todayRepsResponse.json());
 
         if (!todayRepsResult.success) {
@@ -88,10 +88,10 @@ export function SelectExercisePage() {
           );
         }
 
-        setPrograms(programsData);
+        setPrescribedExercises(prescribedExercisesData);
         setTodayReps(todayRepsResult.data);
       } catch (err) {
-        setPrograms([]);
+        setPrescribedExercises([]);
         setTodayReps([]);
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -102,9 +102,9 @@ export function SelectExercisePage() {
     void fetchPageData();
   }, [isLoading, user]);
 
-  const selectedProgram = useMemo(
-    () => programs.find((program) => program.id === selectedProgramId) ?? null,
-    [programs, selectedProgramId],
+  const selectedPrescribedExercise = useMemo(
+    () => prescribedExercises.find((prescribedExercise) => prescribedExercise.id === selectedPrescribedExerciseId) ?? null,
+    [prescribedExercises, selectedPrescribedExerciseId],
   );
 
   const currentSessionPracticeTimeKey = useMemo(() => {
@@ -209,7 +209,7 @@ export function SelectExercisePage() {
         </p>
       )}
 
-      {!loading && !error && programs.length === 0 && (
+      {!loading && !error && prescribedExercises.length === 0 && (
         <p className="mt-8 text-center text-gray-600">
           לא נמצאו תרגילים בתוכנית עבור המשתמש הנוכחי.
         </p>
@@ -217,7 +217,7 @@ export function SelectExercisePage() {
 
       {!loading &&
         !error &&
-        programs.length > 0 &&
+        prescribedExercises.length > 0 &&
         selectedSessionPracticeTimeKey !== null &&
         !hasPendingSelectedSessionReps && (
           <p className="mt-8 text-center text-gray-600">
@@ -227,23 +227,23 @@ export function SelectExercisePage() {
 
       {!loading &&
         !error &&
-        programs.length > 0 &&
+        prescribedExercises.length > 0 &&
         (requestedPracticeTimeKey === null || hasPendingSelectedSessionReps) && (
         <div className="mt-8 space-y-6">
-          {programs.map((program) => {
-            const total = program.numberOfRepetions;
+          {prescribedExercises.map((prescribedExercise) => {
+            const total = prescribedExercise.numberOfRepetions;
             const completed =
               selectedSessionPracticeTimeKey === null
                 ? hasPendingTodayReps
                   ? 0
                   : total
-                : completedSessionRepsByExercise[program.exerciseName] ?? 0;
+                : completedSessionRepsByExercise[prescribedExercise.exerciseName] ?? 0;
             const completionPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
             const isComplete = total > 0 && completed === total;
 
             return (
               <label
-                key={program.id}
+                key={prescribedExercise.id}
                 className={`block border-b border-gray-200 pb-6 ${
                   isComplete ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                 }`}
@@ -252,10 +252,10 @@ export function SelectExercisePage() {
                   <input
                     type="radio"
                     name="exercise"
-                    checked={selectedProgramId === program.id}
+                    checked={selectedPrescribedExerciseId === prescribedExercise.id}
                     onChange={() => {
                       if (isComplete) return;
-                      setSelectedProgramId(program.id);
+                      setSelectedPrescribedExerciseId(prescribedExercise.id);
                     }}
                     disabled={isComplete}
                     className="mt-2 h-6 w-6 accent-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
@@ -263,7 +263,7 @@ export function SelectExercisePage() {
 
                   <div className="flex-1">
                     <div className="flex items-center justify-between text-lg font-semibold text-gray-900">
-                      <span>{program.exerciseName}</span>
+                      <span>{prescribedExercise.exerciseName}</span>
                       <span className="text-gray-800">
                         בוצע {completed} מתוך {total}
                       </span>
@@ -289,13 +289,13 @@ export function SelectExercisePage() {
       <div className="mt-10 flex justify-center">
         <button
           type="button"
-          disabled={!selectedProgram}
+          disabled={!selectedPrescribedExercise}
           onClick={() => {
-            if (!selectedProgram) return;
+            if (!selectedPrescribedExercise) return;
             const nextUrl =
               requestedPracticeTimeKey === null
-                ? `/exercise-description/${selectedProgram.id}`
-                : `/exercise-description/${selectedProgram.id}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+                ? `/exercise-description/${selectedPrescribedExercise.id}`
+                : `/exercise-description/${selectedPrescribedExercise.id}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
             void navigate(nextUrl);
           }}
           className="rounded-lg bg-emerald-300 px-10 py-4 text-4xl font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"

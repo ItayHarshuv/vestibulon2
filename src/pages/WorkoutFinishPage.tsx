@@ -74,8 +74,8 @@ function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
 export function WorkoutFinishPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { programId, repId } = useParams<{
-    programId: string;
+  const { prescribedExerciseId, repId } = useParams<{
+    prescribedExerciseId: string;
     repId: string;
   }>();
   const location = useLocation();
@@ -100,11 +100,11 @@ export function WorkoutFinishPage() {
     fallbackEndTimestampRef.current;
 
   const routeParamsResult = useMemo(
-    () => workoutFinishRouteParamsSchema.safeParse({ programId, repId }),
-    [programId, repId],
+    () => workoutFinishRouteParamsSchema.safeParse({ prescribedExerciseId, repId }),
+    [prescribedExerciseId, repId],
   );
-  const parsedProgramId = routeParamsResult.success
-    ? routeParamsResult.data.programId
+  const parsedPrescribedExerciseId = routeParamsResult.success
+    ? routeParamsResult.data.prescribedExerciseId
     : null;
   const parsedRepId = routeParamsResult.success
     ? routeParamsResult.data.repId
@@ -123,7 +123,7 @@ export function WorkoutFinishPage() {
   async function handleContinue() {
     if (!canContinue) return;
 
-    if (parsedProgramId === null || parsedRepId === null) {
+    if (parsedPrescribedExerciseId === null || parsedRepId === null) {
       const errorMessage = routeParamsResult.success
         ? "נתוני האימון אינם תקינים."
         : getZodErrorMessage(
@@ -154,8 +154,8 @@ export function WorkoutFinishPage() {
 
       const nextUrl =
         requestedPracticeTimeKey === null
-          ? `/workout-rest/${parsedProgramId}/${parsedRepId}`
-          : `/workout-rest/${parsedProgramId}/${parsedRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+          ? `/workout-rest/${parsedPrescribedExerciseId}/${parsedRepId}`
+          : `/workout-rest/${parsedPrescribedExerciseId}/${parsedRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
       await navigate(nextUrl, {
         state: {
           workoutEndTimestampMs,

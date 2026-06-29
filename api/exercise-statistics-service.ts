@@ -1,6 +1,6 @@
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { programHistory, programs, reps, userSessionHistory } from "./db/schema.js";
+import { prescribedExerciseHistory, prescribedExercises, reps, userSessionHistory } from "./db/schema.js";
 import { ensurePrescriptionHistoryForUser } from "./prescription-history-service.js";
 import {
   compareDateKeys,
@@ -9,7 +9,7 @@ import {
   listDateKeysInclusive,
 } from "./timezone-utils.js";
 
-type ProgramHistorySnapshot = {
+type PrescribedExerciseHistorySnapshot = {
   numberOfRepetions: number;
   active: boolean;
   effectiveFrom: Date;
@@ -59,8 +59,8 @@ function resolveSnapshotForDate<T extends { effectiveFrom: Date }>(
 }
 
 function getPlannedRepsForDay(
-  programIds: number[],
-  programSnapshotsByProgramId: Map<number, ProgramHistorySnapshot[]>,
+  prescribedExerciseIds: number[],
+  prescribedExerciseSnapshotsById: Map<number, PrescribedExerciseHistorySnapshot[]>,
   sessionSnapshots: SessionSnapshot[],
   dateKey: string,
   timeZone: string,
@@ -70,8 +70,8 @@ function getPlannedRepsForDay(
 
   let plannedReps = 0;
 
-  for (const programId of programIds) {
-    const snapshots = programSnapshotsByProgramId.get(programId) ?? [];
+  for (const prescribedExerciseId of prescribedExerciseIds) {
+    const snapshots = prescribedExerciseSnapshotsById.get(prescribedExerciseId) ?? [];
     const prescription = resolveSnapshotForDate(snapshots, dateKey, timeZone);
 
     if (!prescription?.active) {
@@ -92,28 +92,28 @@ export async function getExerciseStatisticsForUser(
 
   const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
 
-  const [programRows, historyRows, sessionHistoryRows, completedRepRows] =
+  const [prescribedExerciseRows, historyRows, sessionHistoryRows, completedRepRows] =
     await Promise.all([
       db
         .select({
-          id: programs.id,
-          exerciseName: programs.exerciseName,
-          createdAt: programs.createdAt,
+          id: prescribedExercises.id,
+          exerciseName: prescribedExercises.exerciseName,
+          createdAt: prescribedExercises.createdAt,
         })
-        .from(programs)
-        .where(eq(programs.userId, userId))
-        .orderBy(asc(programs.createdAt), asc(programs.id)),
+        .from(prescribedExercises)
+        .where(eq(prescribedExercises.userId, userId))
+        .orderBy(asc(prescribedExercises.createdAt), asc(prescribedExercises.id)),
       db
         .select({
-          programId: programHistory.programId,
-          exerciseName: programHistory.exerciseName,
-          numberOfRepetions: programHistory.numberOfRepetions,
-          active: programHistory.active,
-          effectiveFrom: programHistory.effectiveFrom,
+          prescribedExerciseId: prescribedExerciseHistory.prescribedExerciseId,
+          exerciseName: prescribedExerciseHistory.exerciseName,
+          numberOfRepetions: prescribedExerciseHistory.numberOfRepetions,
+          active: prescribedExerciseHistory.active,
+          effectiveFrom: prescribedExerciseHistory.effectiveFrom,
         })
-        .from(programHistory)
-        .where(eq(programHistory.userId, userId))
-        .orderBy(asc(programHistory.effectiveFrom), asc(programHistory.id)),
+        .from(prescribedExerciseHistory)
+        .where(eq(prescribedExerciseHistory.userId, userId))
+        .orderBy(asc(prescribedExerciseHistory.effectiveFrom), asc(prescribedExerciseHistory.id)),
       db
         .select({
           numberOfSessions: userSessionHistory.numberOfSessions,
@@ -132,26 +132,26 @@ export async function getExerciseStatisticsForUser(
         .orderBy(asc(reps.endTime), asc(reps.id)),
     ]);
 
-  const programSnapshotsByProgramId = new Map<number, ProgramHistorySnapshot[]>();
-  const programIdsByExerciseName = new Map<string, number[]>();
+  const prescribedExerciseSnapshotsById = new Map<number, PrescribedExerciseHistorySnapshot[]>();
+  const prescribedExerciseIdsByExerciseName = new Map<string, number[]>();
 
-  for (const program of programRows) {
-    const programIds = programIdsByExerciseName.get(program.exerciseName) ?? [];
-    programIds.push(program.id);
-    programIdsByExerciseName.set(program.exerciseName, programIds);
+  for (const prescribedExercise of prescribedExerciseRows) {
+    const prescribedExerciseIds = prescribedExerciseIdsByExerciseName.get(prescribedExercise.exerciseName) ?? [];
+    prescribedExerciseIds.push(prescribedExercise.id);
+    prescribedExerciseIdsByExerciseName.set(prescribedExercise.exerciseName, prescribedExerciseIds);
   }
 
   for (const row of historyRows) {
-    const snapshots = programSnapshotsByProgramId.get(row.programId) ?? [];
+    const snapshots = prescribedExerciseSnapshotsById.get(row.prescribedExerciseId) ?? [];
     snapshots.push({
       numberOfRepetions: row.numberOfRepetions,
       active: row.active,
       effectiveFrom: row.effectiveFrom,
     });
-    programSnapshotsByProgramId.set(row.programId, snapshots);
+    prescribedExerciseSnapshotsById.set(row.prescribedExerciseId, snapshots);
 
-    if (!programIdsByExerciseName.has(row.exerciseName)) {
-      programIdsByExerciseName.set(row.exerciseName, [row.programId]);
+    if (!prescribedExerciseIdsByExerciseName.has(row.exerciseName)) {
+      prescribedExerciseIdsByExerciseName.set(row.exerciseName, [row.prescribedExerciseId]);
     }
   }
 
@@ -167,39 +167,39 @@ export async function getExerciseStatisticsForUser(
       completedRepsByExerciseAndDate.get(row.exerciseName) ?? new Map<string, number>();
     exerciseCounts.set(dateKey, (exerciseCounts.get(dateKey) ?? 0) + 1);
     completedRepsByExerciseAndDate.set(row.exerciseName, exerciseCounts);
-    if (!programIdsByExerciseName.has(row.exerciseName)) {
-      programIdsByExerciseName.set(row.exerciseName, []);
+    if (!prescribedExerciseIdsByExerciseName.has(row.exerciseName)) {
+      prescribedExerciseIdsByExerciseName.set(row.exerciseName, []);
     }
   }
 
-  const exerciseNames = [...programIdsByExerciseName.keys()].sort((left, right) =>
+  const exerciseNames = [...prescribedExerciseIdsByExerciseName.keys()].sort((left, right) =>
     left.localeCompare(right, "he"),
   );
 
-  const programCreatedAtByExercise = new Map<string, string>();
-  for (const program of programRows) {
-    const createdKey = getDateKeyInTimeZone(program.createdAt, timeZone);
-    const existingKey = programCreatedAtByExercise.get(program.exerciseName);
+  const prescribedExerciseCreatedAtByExercise = new Map<string, string>();
+  for (const prescribedExercise of prescribedExerciseRows) {
+    const createdKey = getDateKeyInTimeZone(prescribedExercise.createdAt, timeZone);
+    const existingKey = prescribedExerciseCreatedAtByExercise.get(prescribedExercise.exerciseName);
     if (!existingKey || compareDateKeys(createdKey, existingKey) < 0) {
-      programCreatedAtByExercise.set(program.exerciseName, createdKey);
+      prescribedExerciseCreatedAtByExercise.set(prescribedExercise.exerciseName, createdKey);
     }
   }
 
   return exerciseNames.map((exerciseName) => {
-    const programIds = programIdsByExerciseName.get(exerciseName) ?? [];
+    const prescribedExerciseIds = prescribedExerciseIdsByExerciseName.get(exerciseName) ?? [];
     const repDates = [...(completedRepsByExerciseAndDate.get(exerciseName)?.keys() ?? [])];
     const firstRepDate = repDates.sort(compareDateKeys)[0] ?? null;
-    const programStartDate = programCreatedAtByExercise.get(exerciseName) ?? todayKey;
+    const prescribedExerciseStartDate = prescribedExerciseCreatedAtByExercise.get(exerciseName) ?? todayKey;
     const startDate =
-      firstRepDate && compareDateKeys(firstRepDate, programStartDate) < 0
+      firstRepDate && compareDateKeys(firstRepDate, prescribedExerciseStartDate) < 0
         ? firstRepDate
-        : programStartDate;
+        : prescribedExerciseStartDate;
     const endDate = todayKey;
 
     const days = listDateKeysInclusive(startDate, endDate).map((dateKey) => {
       const plannedReps = getPlannedRepsForDay(
-        programIds,
-        programSnapshotsByProgramId,
+        prescribedExerciseIds,
+        prescribedExerciseSnapshotsById,
         sessionHistoryRows,
         dateKey,
         timeZone,
