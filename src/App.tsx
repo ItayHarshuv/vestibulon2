@@ -177,7 +177,7 @@ export function App() {
             }
           />
           <Route
-            path="/workout-finish/:prescribedExerciseId/:repId"
+            path="/workout-finish/:prescribedExerciseId/:performedRepId"
             element={
               <AuthGate>
                 <WorkoutFinishPage />
@@ -185,7 +185,7 @@ export function App() {
             }
           />
           <Route
-            path="/workout-rest/:prescribedExerciseId/:repId"
+            path="/workout-rest/:prescribedExerciseId/:performedRepId"
             element={
               <AuthGate>
                 <WorkoutRestPage />

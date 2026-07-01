@@ -7,7 +7,7 @@ type TodayRepRow = {
   id: number;
   practiceTime: string;
   exerciseName: string;
-  repId: number | null;
+  performedRepId: number | null;
 };
 
 function getPracticeTimeKey(date: Date) {

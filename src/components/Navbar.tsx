@@ -19,8 +19,8 @@ function getPageTitle(pathname: string) {
   if (matchPath("/select-previous-session", pathname)) return "השלמת תרגולים קודמים";
   if (matchPath("/exercise-description/:prescribedExerciseId", pathname)) return "תיאור התרגיל";
   if (matchPath("/workout/:prescribedExerciseId", pathname)) return "תרגול";
-  if (matchPath("/workout-finish/:prescribedExerciseId/:repId", pathname)) return "סיום תרגול";
-  if (matchPath("/workout-rest/:prescribedExerciseId/:repId", pathname)) return "מנוחה";
+  if (matchPath("/workout-finish/:prescribedExerciseId/:performedRepId", pathname)) return "סיום תרגול";
+  if (matchPath("/workout-rest/:prescribedExerciseId/:performedRepId", pathname)) return "מנוחה";
   if (matchPath("/session-complete", pathname)) return "התרגול הושלם";
   if (matchPath("/sign-in", pathname)) return "התחברות";
   if (matchPath("/sign-up", pathname)) return "הרשמה";
@@ -38,8 +38,8 @@ export function Navbar() {
   const pageTitle = getPageTitle(location.pathname);
   const shouldHideBackButton =
     matchPath("/workout/:prescribedExerciseId", location.pathname) !== null ||
-    matchPath("/workout-finish/:prescribedExerciseId/:repId", location.pathname) !== null ||
-    matchPath("/workout-rest/:prescribedExerciseId/:repId", location.pathname) !== null ||
+    matchPath("/workout-finish/:prescribedExerciseId/:performedRepId", location.pathname) !== null ||
+    matchPath("/workout-rest/:prescribedExerciseId/:performedRepId", location.pathname) !== null ||
     matchPath("/session-complete", location.pathname) !== null;
 
   useEffect(() => {

@@ -18,7 +18,7 @@ interface TodayRepRow {
   id: number;
   practiceTime: string;
   exerciseName: string;
-  repId: number | null;
+  performedRepId: number | null;
 }
 
 function getPracticeTimeKey(date: Date) {
@@ -122,7 +122,8 @@ export function SelectExercisePage() {
     if (latestDuePracticeTimeKey) {
       const latestDuePendingRow = scheduledRows.find(
         (row) =>
-          getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey && row.repId === null,
+          getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey &&
+          row.performedRepId === null,
       );
 
       if (latestDuePendingRow) {
@@ -130,7 +131,9 @@ export function SelectExercisePage() {
       }
     }
 
-    const nextPendingRow = scheduledRows.find((row) => row.practiceDate > now && row.repId === null);
+    const nextPendingRow = scheduledRows.find(
+      (row) => row.practiceDate > now && row.performedRepId === null,
+    );
     return nextPendingRow ? getPracticeTimeKey(nextPendingRow.practiceDate) : null;
   }, [todayReps]);
 
@@ -157,7 +160,7 @@ export function SelectExercisePage() {
     return todayReps.reduce<Record<string, number>>((acc, row) => {
       if (
         getPracticeTimeKey(new Date(row.practiceTime)) !== selectedSessionPracticeTimeKey ||
-        row.repId === null
+        row.performedRepId === null
       ) {
         return acc;
       }
@@ -168,7 +171,7 @@ export function SelectExercisePage() {
   }, [selectedSessionPracticeTimeKey, todayReps]);
 
   const hasPendingTodayReps = useMemo(
-    () => todayReps.some((row) => row.repId === null),
+    () => todayReps.some((row) => row.performedRepId === null),
     [todayReps],
   );
 
@@ -180,7 +183,7 @@ export function SelectExercisePage() {
     return todayReps.some(
       (row) =>
         getPracticeTimeKey(new Date(row.practiceTime)) === selectedSessionPracticeTimeKey &&
-        row.repId === null,
+        row.performedRepId === null,
     );
   }, [selectedSessionPracticeTimeKey, todayReps]);
 

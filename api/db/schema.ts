@@ -67,8 +67,8 @@ export const prescribedExercises = createTable(
   (t) => [index("prescribed_exercises_user_exercise_idx").on(t.userId, t.exerciseName)],
 );
 
-export const reps = createTable(
-  "rep",
+export const performedReps = createTable(
+  "performed_reps",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     prescribedExerciseId: d.integer("prescribed_exercise_id").references(() => prescribedExercises.id, {
@@ -87,8 +87,8 @@ export const reps = createTable(
     flagPaused: d.boolean("flag_paused").default(false),
   }),
   (t) => [
-    index("rep_prescribed_exercise_idx").on(t.prescribedExerciseId),
-    index("rep_user_exercise_idx").on(t.userId, t.exerciseName),
+    index("performed_reps_prescribed_exercise_idx").on(t.prescribedExerciseId),
+    index("performed_reps_user_exercise_idx").on(t.userId, t.exerciseName),
   ],
 );
 
@@ -209,7 +209,7 @@ export const todayReps = createTable(
       .timestamp("practice_time", { withTimezone: true })
       .notNull(),
     exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
-    repId: d.integer("rep_id").references(() => reps.id, {
+    performedRepId: d.integer("performed_rep_id").references(() => performedReps.id, {
       onDelete: "set null",
     }),
   }),
@@ -224,7 +224,7 @@ export const prescribedExercisesRelations = relations(prescribedExercises, ({ ma
     fields: [prescribedExercises.userId],
     references: [users.workosUserId],
   }),
-  reps: many(reps),
+  performedReps: many(performedReps),
   history: many(prescribedExerciseHistory),
 }));
 
@@ -242,9 +242,9 @@ export const userSessionHistoryRelations = relations(userSessionHistory, ({ one 
   }),
 }));
 
-export const repsRelations = relations(reps, ({ one }) => ({
+export const performedRepsRelations = relations(performedReps, ({ one }) => ({
   prescribedExercise: one(prescribedExercises, {
-    fields: [reps.prescribedExerciseId],
+    fields: [performedReps.prescribedExerciseId],
     references: [prescribedExercises.id],
   }),
 }));

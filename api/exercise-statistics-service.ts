@@ -1,6 +1,11 @@
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { prescribedExerciseHistory, prescribedExercises, reps, userSessionHistory } from "./db/schema.js";
+import {
+  performedReps,
+  prescribedExerciseHistory,
+  prescribedExercises,
+  userSessionHistory,
+} from "./db/schema.js";
 import { ensurePrescriptionHistoryForUser } from "./prescription-history-service.js";
 import {
   compareDateKeys,
@@ -92,7 +97,7 @@ export async function getExerciseStatisticsForUser(
 
   const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
 
-  const [prescribedExerciseRows, historyRows, sessionHistoryRows, completedRepRows] =
+  const [prescribedExerciseRows, historyRows, sessionHistoryRows, completedPerformedRepRows] =
     await Promise.all([
       db
         .select({
@@ -124,12 +129,12 @@ export async function getExerciseStatisticsForUser(
         .orderBy(asc(userSessionHistory.effectiveFrom), asc(userSessionHistory.id)),
       db
         .select({
-          exerciseName: reps.exerciseName,
-          endTime: reps.endTime,
+          exerciseName: performedReps.exerciseName,
+          endTime: performedReps.endTime,
         })
-        .from(reps)
-        .where(and(eq(reps.userId, userId), isNotNull(reps.endTime)))
-        .orderBy(asc(reps.endTime), asc(reps.id)),
+        .from(performedReps)
+        .where(and(eq(performedReps.userId, userId), isNotNull(performedReps.endTime)))
+        .orderBy(asc(performedReps.endTime), asc(performedReps.id)),
     ]);
 
   const prescribedExerciseSnapshotsById = new Map<number, PrescribedExerciseHistorySnapshot[]>();
@@ -157,7 +162,7 @@ export async function getExerciseStatisticsForUser(
 
   const completedRepsByExerciseAndDate = new Map<string, Map<string, number>>();
 
-  for (const row of completedRepRows) {
+  for (const row of completedPerformedRepRows) {
     if (!row.endTime) {
       continue;
     }
@@ -187,12 +192,16 @@ export async function getExerciseStatisticsForUser(
 
   return exerciseNames.map((exerciseName) => {
     const prescribedExerciseIds = prescribedExerciseIdsByExerciseName.get(exerciseName) ?? [];
-    const repDates = [...(completedRepsByExerciseAndDate.get(exerciseName)?.keys() ?? [])];
-    const firstRepDate = repDates.sort(compareDateKeys)[0] ?? null;
+    const performedRepDates = [
+      ...(completedRepsByExerciseAndDate.get(exerciseName)?.keys() ?? []),
+    ];
+    const firstPerformedRepDate =
+      performedRepDates.sort(compareDateKeys)[0] ?? null;
     const prescribedExerciseStartDate = prescribedExerciseCreatedAtByExercise.get(exerciseName) ?? todayKey;
     const startDate =
-      firstRepDate && compareDateKeys(firstRepDate, prescribedExerciseStartDate) < 0
-        ? firstRepDate
+      firstPerformedRepDate &&
+      compareDateKeys(firstPerformedRepDate, prescribedExerciseStartDate) < 0
+        ? firstPerformedRepDate
         : prescribedExerciseStartDate;
     const endDate = todayKey;
 

@@ -278,7 +278,7 @@ export async function getTodayRepRowsForUser(
       id: todayReps.id,
       practiceTime: todayReps.practiceTime,
       exerciseName: todayReps.exerciseName,
-      repId: todayReps.repId,
+      performedRepId: todayReps.performedRepId,
     })
     .from(todayReps)
     .where(eq(todayReps.userId, userId))
@@ -299,10 +299,10 @@ export async function getTodayRepRowsForUser(
   });
 }
 
-export async function assignRepToTodayRepSlot(
+export async function assignPerformedRepToTodayRepSlot(
   userId: string,
   exerciseName: string,
-  repId: number,
+  performedRepId: number,
   timeZone: string,
   practiceTimeKey?: string,
 ) {
@@ -313,14 +313,17 @@ export async function assignRepToTodayRepSlot(
       scheduledRows.find(
         (candidateRow) =>
           getPracticeTimeKeyInTimeZone(candidateRow.practiceTime, timeZone) ===
-            practiceTimeKey && candidateRow.repId === null,
+            practiceTimeKey && candidateRow.performedRepId === null,
       ) ?? null;
 
     if (!targetedRow) {
       return false;
     }
 
-    await db.update(todayReps).set({ repId }).where(eq(todayReps.id, targetedRow.id));
+    await db
+      .update(todayReps)
+      .set({ performedRepId })
+      .where(eq(todayReps.id, targetedRow.id));
     return true;
   }
 
@@ -334,23 +337,23 @@ export async function assignRepToTodayRepSlot(
       ? scheduledRows.find(
           (candidateRow) =>
             getPracticeTimeKeyInTimeZone(candidateRow.practiceTime, timeZone) ===
-              latestDuePracticeTimeKey && candidateRow.repId === null,
+              latestDuePracticeTimeKey && candidateRow.performedRepId === null,
         ) ?? null
       : null) ??
     scheduledRows.find(
-      (candidateRow) => candidateRow.practiceTime > now && candidateRow.repId === null,
+      (candidateRow) => candidateRow.practiceTime > now && candidateRow.performedRepId === null,
     );
 
   if (!row) {
     return false;
   }
 
-  await db.update(todayReps).set({ repId }).where(eq(todayReps.id, row.id));
+  await db.update(todayReps).set({ performedRepId }).where(eq(todayReps.id, row.id));
   return true;
 }
 
 function getCurrentSessionCutoffPracticeTime(
-  rows: { practiceTime: Date; repId: number | null }[],
+  rows: { practiceTime: Date; performedRepId: number | null }[],
   timeZone: string,
   now: Date,
 ) {
@@ -367,7 +370,7 @@ function getCurrentSessionCutoffPracticeTime(
     const latestDuePendingRow = scheduledRows.find(
       (row) =>
         getPracticeTimeKeyInTimeZone(row.practiceTime, timeZone) ===
-          latestDuePracticeTimeKey && row.repId === null,
+          latestDuePracticeTimeKey && row.performedRepId === null,
     );
 
     if (latestDuePendingRow) {
@@ -376,7 +379,7 @@ function getCurrentSessionCutoffPracticeTime(
   }
 
   const nextPendingRow = scheduledRows.find(
-    (row) => row.practiceTime > now && row.repId === null,
+    (row) => row.practiceTime > now && row.performedRepId === null,
   );
   if (nextPendingRow) {
     return nextPendingRow.practiceTime;
@@ -401,7 +404,7 @@ export async function applyTreatmentPlanToTodaySchedule(
       id: todayReps.id,
       exerciseName: todayReps.exerciseName,
       practiceTime: todayReps.practiceTime,
-      repId: todayReps.repId,
+      performedRepId: todayReps.performedRepId,
     })
     .from(todayReps)
     .where(eq(todayReps.userId, userId))

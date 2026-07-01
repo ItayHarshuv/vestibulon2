@@ -9,7 +9,7 @@ type TodayRepRow = {
   id: number;
   practiceTime: string;
   exerciseName: string;
-  repId: number | null;
+  performedRepId: number | null;
 };
 
 type SessionSummary = {
@@ -138,7 +138,7 @@ export function HomePage() {
       const latestDuePracticeTimePendingRow = scheduledRows.find(
         (row) =>
           getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey &&
-          row.repId === null,
+          row.performedRepId === null,
       );
 
       if (latestDuePracticeTimePendingRow) {
@@ -149,7 +149,9 @@ export function HomePage() {
       }
     }
 
-    const nextPendingRow = scheduledRows.find((row) => row.practiceDate > now && row.repId === null);
+    const nextPendingRow = scheduledRows.find(
+      (row) => row.practiceDate > now && row.performedRepId === null,
+    );
 
     if (!nextPendingRow) {
       return {
@@ -182,7 +184,7 @@ export function HomePage() {
       const existingSession = sessions.get(practiceTimeKey);
       if (existingSession) {
         existingSession.totalCount += 1;
-        if (row.repId !== null) {
+        if (row.performedRepId !== null) {
           existingSession.completedCount += 1;
         }
         continue;
@@ -191,7 +193,7 @@ export function HomePage() {
       sessions.set(practiceTimeKey, {
         practiceTimeKey,
         practiceDate,
-        completedCount: row.repId === null ? 0 : 1,
+        completedCount: row.performedRepId === null ? 0 : 1,
         totalCount: 1,
       });
     }

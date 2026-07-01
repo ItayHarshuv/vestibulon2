@@ -149,7 +149,7 @@ export const prescribedExerciseRouteParamsSchema = z.object({
 
 export const workoutFinishRouteParamsSchema = z.object({
   prescribedExerciseId: integerRouteParam("prescribedExerciseId must be an integer"),
-  repId: integerRouteParam("repId must be an integer"),
+  performedRepId: integerRouteParam("performedRepId must be an integer"),
 });
 
 export const workoutLocationStateSchema = z.object({
@@ -323,7 +323,7 @@ const practiceTimeKeySchema = z
     "practiceTimeKey must match YYYY-MM-DD-HH-mm",
   );
 
-export const createRepBodySchema = z.preprocess(
+export const createPerformedRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
     prescribedExerciseId: integerField("prescribedExerciseId is required"),
@@ -332,7 +332,7 @@ export const createRepBodySchema = z.preprocess(
   }),
 );
 
-export const getRepsQuerySchema = z.preprocess(
+export const getPerformedRepsQuerySchema = z.preprocess(
   coerceObject,
   z.object({
     userId: optionalUserIdField("userId must be a string"),
@@ -355,7 +355,7 @@ export const getRepsQuerySchema = z.preprocess(
           .filter(Boolean)
           .map((part) => Number(part));
       },
-      z.array(integerField("rep id must be an integer")).min(1, "ids is required"),
+      z.array(integerField("performed rep id must be an integer")).min(1, "ids is required"),
     ),
   }),
 );
@@ -392,9 +392,9 @@ export const updateTodayRepsScheduleBodySchema = z.preprocess(
   }),
 );
 
-const updateRepBodyBaseSchema = z
+const updatePerformedRepBodyBaseSchema = z
   .object({
-    repId: integerField("repId is required"),
+    performedRepId: integerField("performedRepId is required"),
     numberOfSeconds: integerField(
       "numberOfSeconds must be a non-negative integer",
     )
@@ -432,17 +432,17 @@ const updateRepBodyBaseSchema = z
     generalDifficulty: generalDifficulty ?? general_difficulty,
   }));
 
-export const updateRepBodySchema = z.preprocess(
+export const updatePerformedRepBodySchema = z.preprocess(
   coerceObject,
-  updateRepBodyBaseSchema,
+  updatePerformedRepBodyBaseSchema,
 );
 
-export const createRepResponseSchema = z.object({
+export const createPerformedRepResponseSchema = z.object({
   id: z.number().int(),
   startTime: z.string(),
 });
 
-export const updateRepResponseSchema = z.object({
+export const updatePerformedRepResponseSchema = z.object({
   id: z.number().int(),
   endTime: z.date().or(z.string()).optional(),
   bpmEndOfRep: z.number().int().optional(),
@@ -454,7 +454,7 @@ export const updateRepResponseSchema = z.object({
   totalPoints: z.number().int().nonnegative().nullable().optional(),
 });
 
-export const apiRepSummarySchema = z.object({
+export const apiPerformedRepSummarySchema = z.object({
   id: z.number().int(),
   startTime: z.string(),
   endTime: z.string().nullable(),
@@ -464,11 +464,11 @@ export const todayRepRowSchema = z.object({
   id: z.number().int(),
   practiceTime: z.string(),
   exerciseName: z.string(),
-  repId: z.number().int().nullable(),
+  performedRepId: z.number().int().nullable(),
 });
 
 export const todayRepsResponseSchema = z.array(todayRepRowSchema);
-export const repsResponseSchema = z.array(apiRepSummarySchema);
+export const performedRepsResponseSchema = z.array(apiPerformedRepSummarySchema);
 
 export type ApiPrescribedExercise = z.infer<typeof apiPrescribedExerciseSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;
@@ -476,9 +476,9 @@ export type ClinicianPatient = z.infer<typeof clinicianPatientSchema>;
 export type SignInForm = z.infer<typeof signInFormSchema>;
 export type SignUpForm = z.infer<typeof signUpFormSchema>;
 export type UpdatePrescribedExerciseBody = z.infer<typeof updatePrescribedExerciseBodySchema>;
-export type CreateRepBody = z.infer<typeof createRepBodySchema>;
-export type UpdateRepBody = z.infer<typeof updateRepBodySchema>;
-export type UpdateRepResponse = z.infer<typeof updateRepResponseSchema>;
-export type ApiRepSummary = z.infer<typeof apiRepSummarySchema>;
+export type CreatePerformedRepBody = z.infer<typeof createPerformedRepBodySchema>;
+export type UpdatePerformedRepBody = z.infer<typeof updatePerformedRepBodySchema>;
+export type UpdatePerformedRepResponse = z.infer<typeof updatePerformedRepResponseSchema>;
+export type ApiPerformedRepSummary = z.infer<typeof apiPerformedRepSummarySchema>;
 export type ExerciseStatisticsSeries = z.infer<typeof exerciseStatisticsSeriesSchema>;
 export type ExerciseStatisticsResponse = z.infer<typeof exerciseStatisticsResponseSchema>;

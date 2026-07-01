@@ -6,12 +6,12 @@ import { getExerciseTemplateByName } from "~/data/content";
 import { apiFetch } from "~/lib/api";
 import {
   type ApiPrescribedExercise,
-  createRepResponseSchema,
+  createPerformedRepResponseSchema,
   getZodErrorMessage,
   prescribedExerciseRouteParamsSchema,
   prescribedExercisesResponseSchema,
   todayRepsResponseSchema,
-  updateRepResponseSchema,
+  updatePerformedRepResponseSchema,
 } from "~/lib/validation";
 
 const startedWorkoutKeys = new Set<string>();
@@ -37,13 +37,13 @@ export function WorkoutPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [currentBpm, setCurrentBpm] = useState(120);
   const [currentRepNumber, setCurrentRepNumber] = useState(1);
-  const [activeRepId, setActiveRepId] = useState<number | null>(null);
+  const [activePerformedRepId, setActivePerformedRepId] = useState<number | null>(null);
   const [workoutStartTimestampMs, setWorkoutStartTimestampMs] = useState<
     number | null
   >(null);
   const hasLoggedCountdownEndRef = useRef(false);
-  const hasCreatedRepRef = useRef(false);
-  const hasPausedInRepRef = useRef(false);
+  const hasCreatedPerformedRepRef = useRef(false);
+  const hasPausedInPerformedRepRef = useRef(false);
   const hasNavigatedToFinishRef = useRef(false);
   const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
   const initializedPrescribedExerciseIdRef = useRef<number | null>(null);
@@ -114,10 +114,10 @@ export function WorkoutPage() {
     setCurrentBpm(prescribedExercise.metronomeBpmTemp ?? prescribedExercise.metronomeBpm);
     setIsPaused(false);
     hasLoggedCountdownEndRef.current = false;
-    hasCreatedRepRef.current = false;
-    hasPausedInRepRef.current = false;
+    hasCreatedPerformedRepRef.current = false;
+    hasPausedInPerformedRepRef.current = false;
     hasNavigatedToFinishRef.current = false;
-    setActiveRepId(null);
+    setActivePerformedRepId(null);
     setCurrentRepNumber(1);
     setWorkoutStartTimestampMs(null);
     fallbackWorkoutStartTimestampRef.current = Date.now();
@@ -167,7 +167,7 @@ export function WorkoutPage() {
             const latestDuePendingRow = scheduledRows.find(
               (row) =>
                 getPracticeTimeKey(row.practiceDate) === latestDuePracticeTimeKey &&
-                row.repId === null,
+                row.performedRepId === null,
             );
 
             if (latestDuePendingRow) {
@@ -176,7 +176,7 @@ export function WorkoutPage() {
           }
 
           const nextPendingRow = scheduledRows.find(
-            (row) => row.practiceDate > now && row.repId === null,
+            (row) => row.practiceDate > now && row.performedRepId === null,
           );
           return nextPendingRow
             ? getPracticeTimeKey(nextPendingRow.practiceDate)
@@ -195,7 +195,7 @@ export function WorkoutPage() {
             row.exerciseName === prescribedExercise.exerciseName &&
             getPracticeTimeKey(new Date(row.practiceTime)) ===
               selectedSessionPracticeTimeKey &&
-            row.repId !== null,
+            row.performedRepId !== null,
         ).length;
 
         setCurrentRepNumber(
@@ -223,17 +223,19 @@ export function WorkoutPage() {
   }, [isPaused, prescribedExercise, remainingSeconds]);
 
   useEffect(() => {
-    if (!prescribedExercise || isLoading || !user || hasCreatedRepRef.current) return;
+    if (!prescribedExercise || isLoading || !user || hasCreatedPerformedRepRef.current) {
+      return;
+    }
 
     const startKey = `${location.key}:${prescribedExercise.id}`;
     if (startedWorkoutKeys.has(startKey)) return;
 
-    hasCreatedRepRef.current = true;
+    hasCreatedPerformedRepRef.current = true;
     startedWorkoutKeys.add(startKey);
 
     void (async () => {
       try {
-        const response = await apiFetch("/api/reps", {
+        const response = await apiFetch("/api/performed-reps", {
           method: "POST",
           body: JSON.stringify({
             prescribedExerciseId: prescribedExercise.id,
@@ -243,19 +245,19 @@ export function WorkoutPage() {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to create rep record");
+          throw new Error("Failed to create performed rep record");
         }
 
-        const dataResult = createRepResponseSchema.safeParse(
+        const dataResult = createPerformedRepResponseSchema.safeParse(
           await response.json(),
         );
         if (!dataResult.success) {
           throw new Error(
-            getZodErrorMessage(dataResult.error, "Invalid rep response"),
+            getZodErrorMessage(dataResult.error, "Invalid performed rep response"),
           );
         }
 
-        setActiveRepId(dataResult.data.id);
+        setActivePerformedRepId(dataResult.data.id);
         const parsedStartTimestamp = Date.parse(dataResult.data.startTime);
         if (!Number.isNaN(parsedStartTimestamp)) {
           setWorkoutStartTimestampMs(parsedStartTimestamp);
@@ -265,8 +267,8 @@ export function WorkoutPage() {
         setWorkoutStartTimestampMs(fallbackWorkoutStartTimestampRef.current);
       } catch (err) {
         startedWorkoutKeys.delete(startKey);
-        hasCreatedRepRef.current = false;
-        console.error("Error creating rep record:", err);
+        hasCreatedPerformedRepRef.current = false;
+        console.error("Error creating performed rep record:", err);
       }
     })();
   }, [isLoading, location.key, prescribedExercise, requestedPracticeTimeKey, user]);
@@ -281,19 +283,19 @@ export function WorkoutPage() {
       return;
     }
 
-    if (activeRepId === null) return;
+    if (activePerformedRepId === null) return;
     hasLoggedCountdownEndRef.current = true;
 
     const completedBpm = currentBpm;
     const durationSeconds = prescribedExercise.numberOfSeconds;
-    const flagPaused = hasPausedInRepRef.current;
+    const flagPaused = hasPausedInPerformedRepRef.current;
 
     void (async () => {
       try {
-        const response = await apiFetch("/api/reps", {
+        const response = await apiFetch("/api/performed-reps", {
           method: "PATCH",
           body: JSON.stringify({
-            repId: activeRepId,
+            performedRepId: activePerformedRepId,
             numberOfSeconds: durationSeconds,
             bpmEndOfRep: completedBpm,
             flagPaused,
@@ -301,13 +303,13 @@ export function WorkoutPage() {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to update rep record");
+          throw new Error("Failed to update performed rep record");
         }
 
-        const updateResult = updateRepResponseSchema.safeParse(await response.json());
+        const updateResult = updatePerformedRepResponseSchema.safeParse(await response.json());
         if (!updateResult.success) {
           throw new Error(
-            getZodErrorMessage(updateResult.error, "Invalid rep update response"),
+            getZodErrorMessage(updateResult.error, "Invalid performed rep update response"),
           );
         }
 
@@ -315,7 +317,7 @@ export function WorkoutPage() {
           setUserPoints(updateResult.data.totalPoints);
         }
       } catch (err) {
-        console.error("Error updating rep record:", err);
+        console.error("Error updating performed rep record:", err);
       } finally {
         hasNavigatedToFinishRef.current = true;
         const completedWorkoutEndTimestampMs =
@@ -323,8 +325,8 @@ export function WorkoutPage() {
           durationSeconds * 1000;
         const nextUrl =
           requestedPracticeTimeKey === null
-            ? `/workout-finish/${prescribedExercise.id}/${activeRepId}`
-            : `/workout-finish/${prescribedExercise.id}/${activeRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+            ? `/workout-finish/${prescribedExercise.id}/${activePerformedRepId}`
+            : `/workout-finish/${prescribedExercise.id}/${activePerformedRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
         void navigate(nextUrl, {
           state: {
             workoutEndTimestampMs: completedWorkoutEndTimestampMs,
@@ -336,7 +338,7 @@ export function WorkoutPage() {
       }
     })();
   }, [
-    activeRepId,
+    activePerformedRepId,
     currentBpm,
     navigate,
     prescribedExercise,
@@ -454,7 +456,7 @@ export function WorkoutPage() {
             setIsPaused((previousState) => {
               const nextState = !previousState;
               if (nextState) {
-                hasPausedInRepRef.current = true;
+                hasPausedInPerformedRepRef.current = true;
               }
               return nextState;
             })

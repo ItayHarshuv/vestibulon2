@@ -85,6 +85,13 @@
       "when": 1782147015507,
       "tag": "0011_rename_program_to_prescribed_exercises",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782924335922,
+      "tag": "0012_rename_rep_to_performed_reps",
+      "breakpoints": true
     }
   ]
 }
