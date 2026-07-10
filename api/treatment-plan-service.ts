@@ -10,7 +10,7 @@ import {
   recordPrescribedExerciseHistorySnapshot,
   recordUserSessionHistorySnapshot,
 } from "./prescription-history-service.js";
-import { applyTreatmentPlanToTodaySchedule } from "./today-reps-service.js";
+import { ensureTodayRepsForUser } from "./today-reps-service.js";
 import type { z } from "zod";
 import type {
   saveTreatmentPlanBodySchema,
