@@ -1,7 +1,7 @@
 import { eq, or } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { db } from "../db/index.js";
-import { userProfiles } from "../db/schema.js";
+import { users } from "../db/schema.js";
 import {
   getAuthenticationOptions,
   getWorkOS,
@@ -107,11 +107,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const existingProfiles = await db
       .select({
-        username: userProfiles.username,
-        email: userProfiles.email,
+        username: users.username,
+        email: users.email,
       })
-      .from(userProfiles)
-      .where(or(eq(userProfiles.username, username), eq(userProfiles.email, email)))
+      .from(users)
+      .where(or(eq(users.username, username), eq(users.email, email)))
       .limit(2);
 
     if (existingProfiles.some((profile) => profile.username === username)) {
@@ -161,7 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      await db.insert(userProfiles).values({
+      await db.insert(users).values({
         workosUserId: createdUser.id,
         username,
         email: createdUser.email,

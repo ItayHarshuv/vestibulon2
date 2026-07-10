@@ -4,8 +4,8 @@ import { WorkoutStopwatch } from "~/components/WorkoutStopwatch";
 import { apiFetch } from "~/lib/api";
 import {
   getZodErrorMessage,
-  programsResponseSchema,
-  repsResponseSchema,
+  prescribedExercisesResponseSchema,
+  performedRepsResponseSchema,
   todayRepsResponseSchema,
   workoutFinishRouteParamsSchema,
   workoutLocationStateSchema,
@@ -30,9 +30,9 @@ interface RestTimeEntry {
 export function WorkoutRestPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { programId, repId } = useParams<{
-    programId: string;
-    repId: string;
+  const { prescribedExerciseId, performedRepId } = useParams<{
+    prescribedExerciseId: string;
+    performedRepId: string;
   }>();
   const location = useLocation();
   const fallbackEndTimestampRef = useRef<number>(Date.now());
@@ -54,13 +54,19 @@ export function WorkoutRestPage() {
     locationState?.workoutStartTimestampMs ??
     fallbackEndTimestampRef.current;
   const routeParamsResult = useMemo(
-    () => workoutFinishRouteParamsSchema.safeParse({ programId, repId }),
-    [programId, repId],
+    () =>
+      workoutFinishRouteParamsSchema.safeParse({
+        prescribedExerciseId,
+        performedRepId,
+      }),
+    [performedRepId, prescribedExerciseId],
   );
-  const parsedProgramId = routeParamsResult.success
-    ? routeParamsResult.data.programId
+  const parsedPrescribedExerciseId = routeParamsResult.success
+    ? routeParamsResult.data.prescribedExerciseId
     : null;
-  const parsedRepId = routeParamsResult.success ? routeParamsResult.data.repId : null;
+  const parsedPerformedRepId = routeParamsResult.success
+    ? routeParamsResult.data.performedRepId
+    : null;
   const requestedPracticeTimeKey = searchParams.get("practiceTimeKey");
   const selectExerciseUrl =
     requestedPracticeTimeKey === null
@@ -85,7 +91,7 @@ export function WorkoutRestPage() {
   }, [restTimeEntries]);
 
   useEffect(() => {
-    if (parsedProgramId === null || parsedRepId === null) {
+    if (parsedPrescribedExerciseId === null || parsedPerformedRepId === null) {
       setIsLoading(false);
       setRestTimeEntries([]);
       setIsSessionComplete(false);
@@ -105,29 +111,29 @@ export function WorkoutRestPage() {
         setIsSessionComplete(false);
         setRestTimeEntries([]);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const [programsResponse, todayRepsResponse] = await Promise.all([
-          apiFetch("/api/programs"),
+        const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
+          apiFetch("/api/prescribed-exercises"),
           apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
         ]);
 
-        if (!programsResponse.ok) {
-          throw new Error("Failed to fetch programs");
+        if (!prescribedExercisesResponse.ok) {
+          throw new Error("Failed to fetch prescribed exercises");
         }
 
         if (!todayRepsResponse.ok) {
           throw new Error("Failed to fetch today's reps");
         }
 
-        const programsResult = programsResponseSchema.safeParse(
-          await programsResponse.json(),
+        const prescribedExercisesResult = prescribedExercisesResponseSchema.safeParse(
+          await prescribedExercisesResponse.json(),
         );
         const todayRepsResult = todayRepsResponseSchema.safeParse(
           await todayRepsResponse.json(),
         );
 
-        if (!programsResult.success) {
+        if (!prescribedExercisesResult.success) {
           throw new Error(
-            getZodErrorMessage(programsResult.error, "Invalid programs response"),
+            getZodErrorMessage(prescribedExercisesResult.error, "Invalid prescribed exercises response"),
           );
         }
 
@@ -137,20 +143,22 @@ export function WorkoutRestPage() {
           );
         }
 
-        const currentProgram =
-          programsResult.data.find((program) => program.id === parsedProgramId) ?? null;
+        const currentPrescribedExercise =
+          prescribedExercisesResult.data.find((prescribedExercise) => prescribedExercise.id === parsedPrescribedExerciseId) ?? null;
 
-        if (!currentProgram) {
-          throw new Error("Program not found");
+        if (!currentPrescribedExercise) {
+          throw new Error("Prescribed exercise not found");
         }
 
-        const currentRepRow = todayRepsResult.data.find((row) => row.repId === parsedRepId);
-        if (!currentRepRow) {
-          throw new Error("Completed rep slot not found");
+        const currentPerformedRepRow = todayRepsResult.data.find(
+          (row) => row.performedRepId === parsedPerformedRepId,
+        );
+        if (!currentPerformedRepRow) {
+          throw new Error("Completed performed rep slot not found");
         }
 
         const currentSessionPracticeTimeKey = getPracticeTimeKey(
-          new Date(currentRepRow.practiceTime),
+          new Date(currentPerformedRepRow.practiceTime),
         );
         const currentSessionRows = todayRepsResult.data.filter(
           (row) =>
@@ -158,16 +166,17 @@ export function WorkoutRestPage() {
         );
         const completedCurrentExerciseRows = currentSessionRows.filter(
           (row) =>
-            row.exerciseName === currentProgram.exerciseName &&
-            row.repId !== null,
+            row.exerciseName === currentPrescribedExercise.exerciseName &&
+            row.performedRepId !== null,
         );
         const completedCurrentExerciseReps = completedCurrentExerciseRows.length;
         const lastRepInExercise =
-          completedCurrentExerciseReps >= currentProgram.numberOfRepetions;
+          completedCurrentExerciseReps >= currentPrescribedExercise.numberOfRepetions;
 
         setIsLastRepInExercise(lastRepInExercise);
         setIsSessionComplete(
-          lastRepInExercise && currentSessionRows.every((row) => row.repId !== null),
+          lastRepInExercise &&
+            currentSessionRows.every((row) => row.performedRepId !== null),
         );
 
         if (!lastRepInExercise) {
@@ -175,71 +184,86 @@ export function WorkoutRestPage() {
           return;
         }
 
-        const completedRepIds = completedCurrentExerciseRows
-          .map((row) => row.repId)
-          .filter((repId): repId is number => repId !== null);
+        const completedPerformedRepIds = completedCurrentExerciseRows
+          .map((row) => row.performedRepId)
+          .filter((candidateId): candidateId is number => candidateId !== null);
 
-        if (completedRepIds.length === 0) {
+        if (completedPerformedRepIds.length === 0) {
           setRestTimeEntries([]);
           return;
         }
 
-        const repsResponse = await apiFetch(
-          `/api/reps?ids=${encodeURIComponent(completedRepIds.join(","))}`,
+        const performedRepsResponse = await apiFetch(
+          `/api/performed-reps?ids=${encodeURIComponent(completedPerformedRepIds.join(","))}`,
         );
-        if (!repsResponse.ok) {
-          throw new Error("Failed to fetch rep summaries");
+        if (!performedRepsResponse.ok) {
+          throw new Error("Failed to fetch performed rep summaries");
         }
 
-        const repsResult = repsResponseSchema.safeParse(await repsResponse.json());
-        if (!repsResult.success) {
+        const performedRepsResult = performedRepsResponseSchema.safeParse(
+          await performedRepsResponse.json(),
+        );
+        if (!performedRepsResult.success) {
           throw new Error(
-            getZodErrorMessage(repsResult.error, "Invalid reps response"),
+            getZodErrorMessage(performedRepsResult.error, "Invalid performed reps response"),
           );
         }
 
-        const repById = new Map(repsResult.data.map((rep) => [rep.id, rep]));
-        const orderedCompletedReps = completedRepIds.flatMap((repId) => {
-          const rep = repById.get(repId);
-          return rep ? [rep] : [];
-        });
+        const performedRepById = new Map(
+          performedRepsResult.data.map((performedRep) => [performedRep.id, performedRep]),
+        );
+        const orderedCompletedPerformedReps = completedPerformedRepIds.flatMap(
+          (candidateId) => {
+            const performedRep = performedRepById.get(candidateId);
+            return performedRep ? [performedRep] : [];
+          },
+        );
 
-        const nextRestTimeEntries = orderedCompletedReps.map((rep, index) => {
-          const label = `תרגיל ${index + 1}`;
-          const nextRep = orderedCompletedReps[index + 1] ?? null;
-          const repEndTimestampMs = rep.endTime ? Date.parse(rep.endTime) : Number.NaN;
+        const nextRestTimeEntries = orderedCompletedPerformedReps.map(
+          (performedRep, index) => {
+            const label = `תרגיל ${index + 1}`;
+            const nextPerformedRep =
+              orderedCompletedPerformedReps[index + 1] ?? null;
+            const performedRepEndTimestampMs = performedRep.endTime
+              ? Date.parse(performedRep.endTime)
+              : Number.NaN;
 
-          if (!nextRep) {
+            if (!nextPerformedRep) {
+              return {
+                label,
+                elapsedSeconds: null,
+                liveStartTimestampMs: Number.isNaN(performedRepEndTimestampMs)
+                  ? workoutEndTimestampMs
+                  : performedRepEndTimestampMs,
+              };
+            }
+
+            const nextPerformedRepStartTimestampMs = Date.parse(
+              nextPerformedRep.startTime,
+            );
+            if (
+              Number.isNaN(performedRepEndTimestampMs) ||
+              Number.isNaN(nextPerformedRepStartTimestampMs)
+            ) {
+              return {
+                label,
+                elapsedSeconds: null,
+                liveStartTimestampMs: null,
+              };
+            }
+
             return {
               label,
-              elapsedSeconds: null,
-              liveStartTimestampMs: Number.isNaN(repEndTimestampMs)
-                ? workoutEndTimestampMs
-                : repEndTimestampMs,
-            };
-          }
-
-          const nextRepStartTimestampMs = Date.parse(nextRep.startTime);
-          if (
-            Number.isNaN(repEndTimestampMs) ||
-            Number.isNaN(nextRepStartTimestampMs)
-          ) {
-            return {
-              label,
-              elapsedSeconds: null,
+              elapsedSeconds: Math.max(
+                0,
+                Math.floor(
+                  (nextPerformedRepStartTimestampMs - performedRepEndTimestampMs) / 1000,
+                ),
+              ),
               liveStartTimestampMs: null,
             };
-          }
-
-          return {
-            label,
-            elapsedSeconds: Math.max(
-              0,
-              Math.floor((nextRepStartTimestampMs - repEndTimestampMs) / 1000),
-            ),
-            liveStartTimestampMs: null,
-          };
-        });
+          },
+        );
 
         setRestTimeEntries(nextRestTimeEntries);
       } catch (fetchError) {
@@ -251,7 +275,12 @@ export function WorkoutRestPage() {
         setIsLoading(false);
       }
     })();
-  }, [parsedProgramId, parsedRepId, routeParamsResult, workoutEndTimestampMs]);
+  }, [
+    parsedPerformedRepId,
+    parsedPrescribedExerciseId,
+    routeParamsResult,
+    workoutEndTimestampMs,
+  ]);
 
   const primaryButtonLabel = isLastRepInExercise
     ? isSessionComplete
@@ -323,18 +352,18 @@ export function WorkoutRestPage() {
           <button
             type="button"
             onClick={() => {
-              if (parsedProgramId === null) return;
+              if (parsedPrescribedExerciseId === null) return;
               void navigate(
                 isLastRepInExercise
                   ? isSessionComplete
                     ? "/session-complete"
                     : selectExerciseUrl
                   : requestedPracticeTimeKey === null
-                    ? `/workout/${parsedProgramId}`
-                    : `/workout/${parsedProgramId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`,
+                    ? `/workout/${parsedPrescribedExerciseId}`
+                    : `/workout/${parsedPrescribedExerciseId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`,
               );
             }}
-            disabled={isLoading || parsedProgramId === null || error !== null}
+            disabled={isLoading || parsedPrescribedExerciseId === null || error !== null}
             className="w-full rounded-lg bg-emerald-400 px-6 py-6 text-2xl font-extrabold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:text-4xl"
           >
             {primaryButtonLabel}

@@ -74,9 +74,9 @@ function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
 export function WorkoutFinishPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { programId, repId } = useParams<{
-    programId: string;
-    repId: string;
+  const { prescribedExerciseId, performedRepId } = useParams<{
+    prescribedExerciseId: string;
+    performedRepId: string;
   }>();
   const location = useLocation();
   const fallbackEndTimestampRef = useRef<number>(Date.now());
@@ -100,14 +100,18 @@ export function WorkoutFinishPage() {
     fallbackEndTimestampRef.current;
 
   const routeParamsResult = useMemo(
-    () => workoutFinishRouteParamsSchema.safeParse({ programId, repId }),
-    [programId, repId],
+    () =>
+      workoutFinishRouteParamsSchema.safeParse({
+        prescribedExerciseId,
+        performedRepId,
+      }),
+    [performedRepId, prescribedExerciseId],
   );
-  const parsedProgramId = routeParamsResult.success
-    ? routeParamsResult.data.programId
+  const parsedPrescribedExerciseId = routeParamsResult.success
+    ? routeParamsResult.data.prescribedExerciseId
     : null;
-  const parsedRepId = routeParamsResult.success
-    ? routeParamsResult.data.repId
+  const parsedPerformedRepId = routeParamsResult.success
+    ? routeParamsResult.data.performedRepId
     : null;
   const requestedPracticeTimeKey = searchParams.get("practiceTimeKey");
 
@@ -123,7 +127,7 @@ export function WorkoutFinishPage() {
   async function handleContinue() {
     if (!canContinue) return;
 
-    if (parsedProgramId === null || parsedRepId === null) {
+    if (parsedPrescribedExerciseId === null || parsedPerformedRepId === null) {
       const errorMessage = routeParamsResult.success
         ? "נתוני האימון אינם תקינים."
         : getZodErrorMessage(
@@ -138,10 +142,10 @@ export function WorkoutFinishPage() {
       setIsSubmitting(true);
       setError(null);
 
-      const response = await apiFetch("/api/reps", {
+      const response = await apiFetch("/api/performed-reps", {
         method: "PATCH",
         body: JSON.stringify({
-          repId: parsedRepId,
+          performedRepId: parsedPerformedRepId,
           dizziness,
           nausea,
           general_difficulty: generalDifficulty,
@@ -149,13 +153,13 @@ export function WorkoutFinishPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update rep record");
+        throw new Error("Failed to update performed rep record");
       }
 
       const nextUrl =
         requestedPracticeTimeKey === null
-          ? `/workout-rest/${parsedProgramId}/${parsedRepId}`
-          : `/workout-rest/${parsedProgramId}/${parsedRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
+          ? `/workout-rest/${parsedPrescribedExerciseId}/${parsedPerformedRepId}`
+          : `/workout-rest/${parsedPrescribedExerciseId}/${parsedPerformedRepId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`;
       await navigate(nextUrl, {
         state: {
           workoutEndTimestampMs,

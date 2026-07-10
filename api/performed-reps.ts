@@ -7,16 +7,16 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { programs, reps, todayReps, userProfiles } from "./db/schema.js";
+import { performedReps, prescribedExercises, todayReps, users } from "./db/schema.js";
 import {
-  assignRepToTodayRepSlot,
+  assignPerformedRepToTodayRepSlot,
   ensureTodayRepsForUser,
 } from "./today-reps-service.js";
 import {
-  createRepBodySchema,
-  getRepsQuerySchema,
+  createPerformedRepBodySchema,
+  getPerformedRepsQuerySchema,
   getZodErrorMessage,
-  updateRepBodySchema,
+  updatePerformedRepBodySchema,
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "GET") {
-      const queryResult = getRepsQuerySchema.safeParse(req.query);
+      const queryResult = getPerformedRepsQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
         res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
         return;
@@ -57,48 +57,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const rows = await db
         .select({
-          id: reps.id,
-          startTime: reps.startTime,
-          endTime: reps.endTime,
+          id: performedReps.id,
+          startTime: performedReps.startTime,
+          endTime: performedReps.endTime,
         })
-        .from(reps)
+        .from(performedReps)
         .where(
           and(
-            eq(reps.userId, targetUserId),
-            inArray(reps.id, queryResult.data.ids),
+            eq(performedReps.userId, targetUserId),
+            inArray(performedReps.id, queryResult.data.ids),
           ),
         )
-        .orderBy(asc(reps.startTime), asc(reps.id));
+        .orderBy(asc(performedReps.startTime), asc(performedReps.id));
 
       res.status(200).json(rows);
       return;
     }
 
     if (req.method === "POST") {
-      const bodyResult = createRepBodySchema.safeParse(req.body);
+      const bodyResult = createPerformedRepBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
         res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
         return;
       }
 
-      const { practiceTimeKey, programId, timeZone } = bodyResult.data;
-      const matchingPrograms = await db
+      const { practiceTimeKey, prescribedExerciseId, timeZone } = bodyResult.data;
+      const matchingPrescribedExercises = await db
         .select({
-          id: programs.id,
-          exerciseName: programs.exerciseName,
+          id: prescribedExercises.id,
+          exerciseName: prescribedExercises.exerciseName,
         })
-        .from(programs)
+        .from(prescribedExercises)
         .where(
           and(
-            eq(programs.id, programId),
-            eq(programs.userId, authenticatedUserId),
+            eq(prescribedExercises.id, prescribedExerciseId),
+            eq(prescribedExercises.userId, authenticatedUserId),
           ),
         )
         .limit(1);
 
-      const program = matchingPrograms[0];
-      if (!program) {
-        res.status(404).json({ error: "Program not found" });
+      const prescribedExercise = matchingPrescribedExercises[0];
+      if (!prescribedExercise) {
+        res.status(404).json({ error: "Prescribed exercise not found" });
         return;
       }
 
@@ -107,41 +107,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await ensureTodayRepsForUser(authenticatedUserId, timeZone);
 
       const inserted = await db
-        .insert(reps)
+        .insert(performedReps)
         .values({
-          programId: program.id,
+          prescribedExerciseId: prescribedExercise.id,
           userId: authenticatedUserId,
-          exerciseName: program.exerciseName,
+          exerciseName: prescribedExercise.exerciseName,
           startTime: now,
         })
         .returning();
 
-      const createdRep = inserted[0];
-      if (!createdRep) {
-        res.status(500).json({ error: "Failed to create rep" });
+      const createdPerformedRep = inserted[0];
+      if (!createdPerformedRep) {
+        res.status(500).json({ error: "Failed to create performed rep" });
         return;
       }
 
-      const assigned = await assignRepToTodayRepSlot(
+      const assigned = await assignPerformedRepToTodayRepSlot(
         authenticatedUserId,
-        program.exerciseName,
-        createdRep.id,
+        prescribedExercise.exerciseName,
+        createdPerformedRep.id,
         timeZone,
         practiceTimeKey,
       );
 
       if (!assigned) {
-        await db.delete(reps).where(eq(reps.id, createdRep.id));
-        res.status(409).json({ error: "No available today rep slot for this exercise" });
+        await db
+          .delete(performedReps)
+          .where(eq(performedReps.id, createdPerformedRep.id));
+        res
+          .status(409)
+          .json({ error: "No available today rep slot for this exercise" });
         return;
       }
 
-      res.status(201).json(createdRep);
+      res.status(201).json(createdPerformedRep);
       return;
     }
 
     if (req.method === "PATCH") {
-      const bodyResult = updateRepBodySchema.safeParse(req.body);
+      const bodyResult = updatePerformedRepBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
         res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
         return;
@@ -154,7 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         generalDifficulty,
         nausea,
         numberOfSeconds,
-        repId,
+        performedRepId,
       } = bodyResult.data;
 
       const valuesToUpdate: {
@@ -168,25 +172,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let shouldAwardCompletionPoints = false;
 
       if (numberOfSeconds !== undefined) {
-        const repRows = await db
+        const performedRepRows = await db
           .select({
-            startTime: reps.startTime,
-            endTime: reps.endTime,
+            startTime: performedReps.startTime,
+            endTime: performedReps.endTime,
           })
-          .from(reps)
-          .where(and(eq(reps.id, repId), eq(reps.userId, authenticatedUserId)))
+          .from(performedReps)
+          .where(
+            and(
+              eq(performedReps.id, performedRepId),
+              eq(performedReps.userId, authenticatedUserId),
+            ),
+          )
           .limit(1);
 
-        const repRow = repRows[0];
-        if (!repRow?.startTime) {
-          res.status(404).json({ error: "Rep not found" });
+        const performedRepRow = performedRepRows[0];
+        if (!performedRepRow?.startTime) {
+          res.status(404).json({ error: "Performed rep not found" });
           return;
         }
 
         valuesToUpdate.endTime = new Date(
-          repRow.startTime.getTime() + numberOfSeconds * 1000,
+          performedRepRow.startTime.getTime() + numberOfSeconds * 1000,
         );
-        shouldAwardCompletionPoints = repRow.endTime === null;
+        shouldAwardCompletionPoints = performedRepRow.endTime === null;
       }
 
       if (bpmEndOfRep !== undefined) {
@@ -210,13 +219,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const updated = await db
-        .update(reps)
+        .update(performedReps)
         .set(valuesToUpdate)
-        .where(and(eq(reps.id, repId), eq(reps.userId, authenticatedUserId)))
+        .where(
+          and(
+            eq(performedReps.id, performedRepId),
+            eq(performedReps.userId, authenticatedUserId),
+          ),
+        )
         .returning();
 
       if (updated.length === 0) {
-        res.status(404).json({ error: "Rep not found" });
+        res.status(404).json({ error: "Performed rep not found" });
         return;
       }
 
@@ -230,7 +244,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             exerciseName: todayReps.exerciseName,
           })
           .from(todayReps)
-          .where(and(eq(todayReps.userId, authenticatedUserId), eq(todayReps.repId, repId)))
+          .where(
+            and(
+              eq(todayReps.userId, authenticatedUserId),
+              eq(todayReps.performedRepId, performedRepId),
+            ),
+          )
           .limit(1);
 
         const currentTodayRep = currentTodayRepRows[0];
@@ -238,10 +257,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const sessionRows = await db
             .select({
               exerciseName: todayReps.exerciseName,
-              repEndTime: reps.endTime,
+              performedRepEndTime: performedReps.endTime,
             })
             .from(todayReps)
-            .leftJoin(reps, eq(todayReps.repId, reps.id))
+            .leftJoin(performedReps, eq(todayReps.performedRepId, performedReps.id))
             .where(
               and(
                 eq(todayReps.userId, authenticatedUserId),
@@ -254,10 +273,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           );
           const didCompleteExercise =
             currentExerciseRows.length > 0 &&
-            currentExerciseRows.every((row) => row.repEndTime !== null);
+            currentExerciseRows.every((row) => row.performedRepEndTime !== null);
           const didCompleteSession =
             sessionRows.length > 0 &&
-            sessionRows.every((row) => row.repEndTime !== null);
+            sessionRows.every((row) => row.performedRepEndTime !== null);
 
           pointsAwarded = 10;
           if (didCompleteExercise) {
@@ -271,18 +290,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const updatedProfile = await db
-          .update(userProfiles)
+          .update(users)
           .set({
-            points: sql`${userProfiles.points} + ${pointsAwarded}`,
+            points: sql`${users.points} + ${pointsAwarded}`,
           })
-          .where(eq(userProfiles.workosUserId, authenticatedUserId))
+          .where(eq(users.workosUserId, authenticatedUserId))
           .returning();
 
         totalPoints = updatedProfile[0]?.points ?? null;
       }
 
       res.status(200).json({
-        id: repId,
+        id: performedRepId,
         ...valuesToUpdate,
         pointsAwarded,
         totalPoints,
@@ -292,7 +311,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
-    console.error("Error handling reps endpoint:", error);
-    res.status(500).json({ error: "Failed to handle reps endpoint" });
+    console.error("Error handling performed reps endpoint:", error);
+    res.status(500).json({ error: "Failed to handle performed reps endpoint" });
   }
 }

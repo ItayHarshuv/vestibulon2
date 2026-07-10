@@ -7,11 +7,11 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { programs } from "./db/schema.js";
+import { prescribedExercises } from "./db/schema.js";
 import {
   getZodErrorMessage,
-  programsQuerySchema,
-  updateProgramBodySchema,
+  prescribedExercisesQuerySchema,
+  updatePrescribedExerciseBodySchema,
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -29,30 +29,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PATCH") {
-      const bodyResult = updateProgramBodySchema.safeParse(req.body);
+      const bodyResult = updatePrescribedExerciseBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
         res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
         return;
       }
 
-      const { programId, metronomeBpmTemp } = bodyResult.data;
-      const programRows = await db
+      const { prescribedExerciseId, metronomeBpmTemp } = bodyResult.data;
+      const prescribedExerciseRows = await db
         .select({
-          id: programs.id,
-          userId: programs.userId,
+          id: prescribedExercises.id,
+          userId: prescribedExercises.userId,
         })
-        .from(programs)
-        .where(eq(programs.id, programId))
+        .from(prescribedExercises)
+        .where(eq(prescribedExercises.id, prescribedExerciseId))
         .limit(1);
-      const program = programRows[0];
-      if (!program) {
-        res.status(404).json({ error: "Program not found" });
+      const prescribedExercise = prescribedExerciseRows[0];
+      if (!prescribedExercise) {
+        res.status(404).json({ error: "Prescribed exercise not found" });
         return;
       }
 
       const accessibleProfile = await getAccessibleUserProfile(
         authenticatedUser,
-        program.userId,
+        prescribedExercise.userId,
       );
       if (!accessibleProfile) {
         res.status(403).json({ error: "Forbidden" });
@@ -60,19 +60,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const updated = await db
-        .update(programs)
+        .update(prescribedExercises)
         .set({ metronomeBpmTemp })
         .where(
           and(
-            eq(programs.id, programId),
-            eq(programs.userId, program.userId),
+            eq(prescribedExercises.id, prescribedExerciseId),
+            eq(prescribedExercises.userId, prescribedExercise.userId),
           ),
         )
         .returning();
 
       const updatedRow = updated[0];
       if (!updatedRow) {
-        res.status(404).json({ error: "Program not found" });
+        res.status(404).json({ error: "Prescribed exercise not found" });
         return;
       }
 
@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const queryResult = programsQuerySchema.safeParse(req.query);
+    const queryResult = prescribedExercisesQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
       res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
       return;
@@ -107,27 +107,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const userPrograms = await db
+    const userPrescribedExercises = await db
       .select({
-        id: programs.id,
-        exerciseName: programs.exerciseName,
-        numberOfSeconds: programs.numberOfSeconds,
-        numberOfRepetions: programs.numberOfRepetions,
-        metronomeBpm: programs.metronomeBpm,
-        metronomeBpmTemp: programs.metronomeBpmTemp,
-        position: programs.position,
-        background: programs.background,
-        recomendedVAS: programs.recomendedVAS,
+        id: prescribedExercises.id,
+        exerciseName: prescribedExercises.exerciseName,
+        numberOfSeconds: prescribedExercises.numberOfSeconds,
+        numberOfRepetions: prescribedExercises.numberOfRepetions,
+        metronomeBpm: prescribedExercises.metronomeBpm,
+        metronomeBpmTemp: prescribedExercises.metronomeBpmTemp,
+        position: prescribedExercises.position,
+        background: prescribedExercises.background,
+        recomendedVAS: prescribedExercises.recomendedVAS,
       })
-      .from(programs)
+      .from(prescribedExercises)
       .where(
-        and(eq(programs.userId, targetUserId), eq(programs.active, true)),
+        and(eq(prescribedExercises.userId, targetUserId), eq(prescribedExercises.active, true)),
       )
-      .orderBy(programs.createdAt);
+      .orderBy(prescribedExercises.createdAt);
 
-    res.status(200).json(userPrograms);
+    res.status(200).json(userPrescribedExercises);
   } catch (error) {
-    console.error("Error fetching programs:", error);
-    res.status(500).json({ error: "Failed to fetch programs" });
+    console.error("Error fetching prescribed exercises:", error);
+    res.status(500).json({ error: "Failed to fetch prescribed exercises" });
   }
 }

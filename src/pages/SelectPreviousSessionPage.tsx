@@ -8,7 +8,7 @@ type TodayRepRow = {
   id: number;
   practiceTime: string;
   exerciseName: string;
-  repId: number | null;
+  performedRepId: number | null;
 };
 
 type IncompleteSession = {
@@ -95,7 +95,7 @@ export function SelectPreviousSessionPage() {
       const existingSession = sessions.get(practiceTimeKey);
       if (existingSession) {
         existingSession.totalCount += 1;
-        if (row.repId !== null) {
+        if (row.performedRepId !== null) {
           existingSession.completedCount += 1;
         }
         continue;
@@ -104,7 +104,7 @@ export function SelectPreviousSessionPage() {
       sessions.set(practiceTimeKey, {
         practiceDate,
         practiceTimeKey,
-        completedCount: row.repId === null ? 0 : 1,
+        completedCount: row.performedRepId === null ? 0 : 1,
         totalCount: 1,
       });
     }

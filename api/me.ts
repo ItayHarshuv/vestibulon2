@@ -9,7 +9,7 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { programs, userProfiles } from "./db/schema.js";
+import { prescribedExercises, users } from "./db/schema.js";
 import { recordUserSessionHistorySnapshot } from "./prescription-history-service.js";
 import {
   getZodErrorMessage,
@@ -104,8 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         deletedFromWorkOS = true;
 
         await db.transaction(async (tx) => {
-          await tx.delete(programs).where(eq(programs.userId, targetUserId));
-          await tx.delete(userProfiles).where(eq(userProfiles.workosUserId, targetUserId));
+          await tx.delete(prescribedExercises).where(eq(prescribedExercises.userId, targetUserId));
+          await tx.delete(users).where(eq(users.workosUserId, targetUserId));
         });
       } catch (error) {
         console.error("Error deleting user:", error);
@@ -177,9 +177,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const updated = await db
-      .update(userProfiles)
+      .update(users)
       .set(updates)
-      .where(eq(userProfiles.workosUserId, targetUserId))
+      .where(eq(users.workosUserId, targetUserId))
       .returning();
 
     const updatedProfile = updated[0];

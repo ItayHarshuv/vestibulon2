@@ -12,8 +12,8 @@ import signUpHandler from "./api/auth/sign-up";
 import passwordResetHandler from "./api/auth/password-reset";
 import { callVercelApiHandler } from "./api/devAdapter";
 import meHandler from "./api/me";
-import programsHandler from "./api/programs";
-import repsHandler from "./api/reps";
+import performedRepsHandler from "./api/performed-reps";
+import prescribedExercisesHandler from "./api/prescribed-exercises";
 import todayRepsHandler from "./api/today-reps";
 import exerciseStatisticsHandler from "./api/exercise-statistics";
 
@@ -38,8 +38,8 @@ export default defineConfig({
           "/auth/sign-up": signUpHandler,
           "/auth/password-reset": passwordResetHandler,
           "/me": meHandler,
-          "/programs": programsHandler,
-          "/reps": repsHandler,
+          "/performed-reps": performedRepsHandler,
+          "/prescribed-exercises": prescribedExercisesHandler,
           "/today-reps": todayRepsHandler,
           "/exercise-statistics": exerciseStatisticsHandler,
         };
