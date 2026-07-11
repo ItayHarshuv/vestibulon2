@@ -46,8 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const { userId } = queryResult.data;
-      const profile = await getAccessibleUserProfile(clinician, userId);
+      const { patientUserId } = queryResult.data;
+      const profile = await getAccessibleUserProfile(clinician, patientUserId);
       if (!profile) {
         res.status(403).json({ error: "Forbidden" });
         return;
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const plan = await getTreatmentPlanForUser(userId);
+      const plan = await getTreatmentPlanForUser(patientUserId);
       if (!plan) {
         res.status(404).json({ error: "User profile not found" });
         return;
@@ -74,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const profile = await getAccessibleUserProfile(clinician, bodyResult.data.userId);
+    const profile = await getAccessibleUserProfile(clinician, bodyResult.data.patientUserId);
     if (!profile) {
       res.status(403).json({ error: "Forbidden" });
       return;

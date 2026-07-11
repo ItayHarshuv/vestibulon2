@@ -220,6 +220,7 @@ export const updatePrescribedExerciseBodySchema = z.preprocess(
 
 export const apiPrescribedExerciseSchema = z.object({
   id: z.number().int(),
+  treatmentPlanExerciseId: z.number().int().nullable().optional(),
   exerciseName: z.string(),
   numberOfSeconds: z.number().int(),
   numberOfRepetions: z.number().int(),
@@ -235,45 +236,45 @@ export const prescribedExercisesResponseSchema = z.array(apiPrescribedExerciseSc
 export const treatmentPlanQuerySchema = z.preprocess(
   coerceObject,
   z.object({
-    userId: z.preprocess(
+    patientUserId: z.preprocess(
       (value) => (Array.isArray(value) ? value[0] : value),
-      requiredTrimmedString("userId is required"),
+      requiredTrimmedString("patientUserId is required"),
     ),
   }),
 );
 
 export const treatmentPlanExerciseInputSchema = z.object({
-  exerciseName: z.enum(exerciseTemplateNames, {
-    errorMap: () => ({ message: "exerciseName must be a valid exercise" }),
+  exerciseCode: z.enum(exerciseTemplateNames, {
+    errorMap: () => ({ message: "exerciseCode must be a valid exercise" }),
   }),
-  numberOfSeconds: integerField("numberOfSeconds must be an integer")
-    .min(1, "numberOfSeconds must be at least 1")
-    .max(600, "numberOfSeconds must be at most 600"),
-  numberOfRepetions: integerField("numberOfRepetions must be an integer")
-    .min(1, "numberOfRepetions must be at least 1")
-    .max(50, "numberOfRepetions must be at most 50"),
-  metronomeBpm: integerField("metronomeBpm must be an integer")
-    .min(30, "metronomeBpm must be at least 30")
-    .max(240, "metronomeBpm must be at most 240"),
+  secondsPerRep: integerField("secondsPerRep must be an integer")
+    .min(1, "secondsPerRep must be at least 1")
+    .max(600, "secondsPerRep must be at most 600"),
+  repsPerSession: integerField("repsPerSession must be an integer")
+    .min(1, "repsPerSession must be at least 1")
+    .max(50, "repsPerSession must be at most 50"),
+  targetBpm: integerField("targetBpm must be an integer")
+    .min(30, "targetBpm must be at least 30")
+    .max(240, "targetBpm must be at most 240"),
   position: z.enum(allExPositions, {
     errorMap: () => ({ message: "position must be a valid position" }),
   }),
   background: z.enum(allBackgrounds, {
     errorMap: () => ({ message: "background must be a valid background" }),
   }),
-  recomendedVAS: integerField("recomendedVAS must be an integer")
-    .min(0, "recomendedVAS must be between 0 and 10")
-    .max(10, "recomendedVAS must be between 0 and 10"),
+  recommendedVAS: integerField("recommendedVAS must be an integer")
+    .min(0, "recommendedVAS must be between 0 and 10")
+    .max(10, "recommendedVAS must be between 0 and 10"),
 });
 
 export const saveTreatmentPlanBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    userId: requiredTrimmedString("userId is required"),
+    patientUserId: requiredTrimmedString("patientUserId is required"),
     timeZone: requiredTrimmedString("timeZone is required"),
-    numberOfSessions: integerField("numberOfSessions must be an integer")
-      .min(1, "numberOfSessions must be at least 1")
-      .max(10, "numberOfSessions must be at most 10"),
+    sessionsPerDay: integerField("sessionsPerDay must be an integer")
+      .min(1, "sessionsPerDay must be at least 1")
+      .max(10, "sessionsPerDay must be at most 10"),
     exercises: z
       .array(treatmentPlanExerciseInputSchema, {
         required_error: "exercises is required",
@@ -281,7 +282,7 @@ export const saveTreatmentPlanBodySchema = z.preprocess(
       })
       .min(1, "At least one exercise is required")
       .superRefine((exercises, context) => {
-        const names = exercises.map((exercise) => exercise.exerciseName);
+        const names = exercises.map((exercise) => exercise.exerciseCode);
         if (new Set(names).size !== names.length) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
@@ -301,19 +302,19 @@ export const treatmentPlanResponseSchema = z.object({
   plan: z
     .object({
       id: z.number().int(),
-      numberOfSessions: z.number().int(),
+      sessionsPerDay: z.number().int(),
       effectiveFrom: z.string(),
       createdAt: z.string(),
     })
     .nullable(),
-  numberOfSessions: z.number().int(),
+  sessionsPerDay: z.number().int(),
   exercises: z.array(treatmentPlanExerciseSchema),
 });
 
 export const saveTreatmentPlanResponseSchema = z.object({
   planId: z.number().int(),
-  numberOfSessions: z.number().int(),
-  exercises: z.array(apiPrescribedExerciseSchema),
+  sessionsPerDay: z.number().int(),
+  exercises: z.array(treatmentPlanExerciseSchema),
 });
 
 const practiceTimeKeySchema = z
@@ -326,7 +327,7 @@ const practiceTimeKeySchema = z
 export const createPerformedRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    prescribedExerciseId: integerField("prescribedExerciseId is required"),
+    treatmentPlanExerciseId: integerField("treatmentPlanExerciseId is required"),
     timeZone: requiredTrimmedString("timeZone is required"),
     practiceTimeKey: practiceTimeKeySchema.optional(),
   }),

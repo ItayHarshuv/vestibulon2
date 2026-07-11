@@ -23,15 +23,15 @@ import {
 type TabId = "patient" | "exercises" | "configure";
 
 const defaultExerciseDraft = (
-  exerciseName: ExerciseTemplateName,
+  exerciseCode: ExerciseTemplateName,
 ): TreatmentPlanExerciseDraft => ({
-  exerciseName,
-  numberOfSeconds: "",
-  numberOfRepetions: "",
-  metronomeBpm: 60,
+  exerciseCode,
+  secondsPerRep: "",
+  repsPerSession: "",
+  targetBpm: 60,
   position: allExPositions[0],
   background: allBackgrounds[0],
-  recomendedVAS: 0,
+  recommendedVAS: 0,
 });
 
 const tabs: Array<{ id: TabId; label: string }> = [
@@ -48,7 +48,7 @@ export function ClinicianTreatmentPlanPage() {
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [planLoading, setPlanLoading] = useState(false);
-  const [numberOfSessions, setNumberOfSessions] = useState<number | "">(1);
+  const [sessionsPerDay, setSessionsPerDay] = useState<number | "">(1);
   const [selectedExerciseNames, setSelectedExerciseNames] = useState<ExerciseTemplateName[]>(
     [],
   );
@@ -56,7 +56,7 @@ export function ClinicianTreatmentPlanPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const selectableUsers = useMemo(() => {
-    if (!user || user.role !== "clinician") {
+    if (user?.role !== "clinician") {
       return [];
     }
 
@@ -69,11 +69,6 @@ export function ClinicianTreatmentPlanPage() {
       ...patients,
     ];
   }, [patients, user]);
-
-  const selectedPatient = useMemo(
-    () => selectableUsers.find((patient) => patient.id === selectedPatientId) ?? null,
-    [selectableUsers, selectedPatientId],
-  );
 
   useEffect(() => {
     if (isLoading || user?.role !== "clinician") {
@@ -136,7 +131,7 @@ export function ClinicianTreatmentPlanPage() {
 
   useEffect(() => {
     if (!selectedPatientId) {
-      setNumberOfSessions("");
+      setSessionsPerDay("");
       setSelectedExerciseNames([]);
       setExerciseDrafts([]);
       return;
@@ -150,7 +145,7 @@ export function ClinicianTreatmentPlanPage() {
         setError(null);
 
         const response = await apiFetch(
-          `/api/clinician/treatment-plan?userId=${encodeURIComponent(selectedPatientId)}`,
+          `/api/clinician/treatment-plan?patientUserId=${encodeURIComponent(selectedPatientId)}`,
         );
 
         if (!response.ok) {
@@ -166,25 +161,25 @@ export function ClinicianTreatmentPlanPage() {
           return;
         }
 
-        const { numberOfSessions: sessions, exercises } = parsed.data;
-        setNumberOfSessions(sessions);
+        const { sessionsPerDay: sessions, exercises } = parsed.data;
+        setSessionsPerDay(sessions);
 
         if (exercises.length > 0) {
           const names = exercises
-            .map((exercise) => exercise.exerciseName)
+            .map((exercise) => exercise.exerciseCode)
             .filter((name): name is ExerciseTemplateName =>
               (exerciseTemplateNames as readonly string[]).includes(name),
             );
           setSelectedExerciseNames(names);
           setExerciseDrafts(
             exercises.map((exercise) => ({
-              exerciseName: exercise.exerciseName,
-              numberOfSeconds: exercise.numberOfSeconds,
-              numberOfRepetions: exercise.numberOfRepetions,
-              metronomeBpm: exercise.metronomeBpm,
+              exerciseCode: exercise.exerciseCode,
+              secondsPerRep: exercise.secondsPerRep,
+              repsPerSession: exercise.repsPerSession,
+              targetBpm: exercise.targetBpm,
               position: exercise.position,
               background: exercise.background,
-              recomendedVAS: exercise.recomendedVAS,
+              recommendedVAS: exercise.recommendedVAS,
             })),
           );
         } else {
@@ -195,7 +190,7 @@ export function ClinicianTreatmentPlanPage() {
         console.error("Error fetching treatment plan:", fetchError);
         if (!isCancelled) {
           setError("לא ניתן לטעון את תכנית הטיפול");
-          setNumberOfSessions("");
+          setSessionsPerDay("");
           setSelectedExerciseNames([]);
           setExerciseDrafts([]);
         }
@@ -214,7 +209,7 @@ export function ClinicianTreatmentPlanPage() {
   useEffect(() => {
     setExerciseDrafts((currentDrafts) => {
       const draftsByName = new Map(
-        currentDrafts.map((draft) => [draft.exerciseName, draft]),
+        currentDrafts.map((draft) => [draft.exerciseCode, draft]),
       );
 
       return selectedExerciseNames.map((exerciseName) => {
@@ -256,7 +251,7 @@ export function ClinicianTreatmentPlanPage() {
       return;
     }
 
-    if (numberOfSessions === "") {
+    if (sessionsPerDay === "") {
       setError("יש להזין מספר תרגולים ביום");
       setActiveTab("exercises");
       showValidationPopup("treatment-plan-number-of-sessions");
@@ -264,14 +259,14 @@ export function ClinicianTreatmentPlanPage() {
     }
 
     const firstExerciseMissingField = exerciseDrafts.findIndex(
-      (exercise) => exercise.numberOfSeconds === "" || exercise.numberOfRepetions === "",
+      (exercise) => exercise.secondsPerRep === "" || exercise.repsPerSession === "",
     );
     if (firstExerciseMissingField >= 0) {
       const exercise = exerciseDrafts[firstExerciseMissingField];
       setError("יש למלא את כל השדות המספריים");
       setActiveTab("configure");
       showValidationPopup(
-        exercise?.numberOfSeconds === ""
+        exercise?.secondsPerRep === ""
           ? `treatment-plan-exercise-${firstExerciseMissingField}-seconds`
           : `treatment-plan-exercise-${firstExerciseMissingField}-repetitions`,
       );
@@ -279,9 +274,9 @@ export function ClinicianTreatmentPlanPage() {
     }
 
     const payload = {
-      userId: selectedPatientId,
+      patientUserId: selectedPatientId,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      numberOfSessions,
+      sessionsPerDay,
       exercises: exerciseDrafts,
     };
 
@@ -422,7 +417,7 @@ export function ClinicianTreatmentPlanPage() {
                 min={1}
                 max={10}
                 required
-                value={numberOfSessions}
+                value={sessionsPerDay}
                 onInvalid={(event) => {
                   if (event.currentTarget.validity.valueMissing) {
                     event.currentTarget.setCustomValidity("This field is required");
@@ -432,7 +427,7 @@ export function ClinicianTreatmentPlanPage() {
                   event.currentTarget.setCustomValidity("");
                 }}
                 onChange={(event) =>
-                  setNumberOfSessions(
+                  setSessionsPerDay(
                     event.target.value === "" ? "" : Number(event.target.value),
                   )
                 }
@@ -487,7 +482,7 @@ export function ClinicianTreatmentPlanPage() {
           ) : (
             exerciseDrafts.map((exercise, index) => (
               <TreatmentPlanExerciseCard
-                key={exercise.exerciseName}
+                key={exercise.exerciseCode}
                 exercise={exercise}
                 exerciseIndex={index}
                 onChange={(nextExercise) => {

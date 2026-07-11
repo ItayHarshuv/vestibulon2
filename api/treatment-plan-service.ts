@@ -10,7 +10,9 @@ import {
   recordPrescribedExerciseHistorySnapshot,
   recordUserSessionHistorySnapshot,
 } from "./prescription-history-service.js";
-import { ensureTodayRepsForUser } from "./today-reps-service.js";
+import {
+  applyTreatmentPlanToTodaySchedule,
+} from "./today-reps-service.js";
 import type { z } from "zod";
 import type {
   saveTreatmentPlanBodySchema,
@@ -20,13 +22,38 @@ import type {
 type TreatmentPlanExerciseInput = z.infer<typeof treatmentPlanExerciseInputSchema>;
 type SaveTreatmentPlanBody = z.infer<typeof saveTreatmentPlanBodySchema>;
 
-export async function getTreatmentPlanForUser(userId: string) {
+function mapPrescribedExerciseToTreatmentPlanExercise(
+  prescribedExercise: {
+    id: number;
+    exerciseName: string;
+    numberOfSeconds: number;
+    numberOfRepetions: number;
+    metronomeBpm: number;
+    position: string;
+    background: string;
+    recomendedVAS: number;
+  },
+) {
+  return {
+    id: prescribedExercise.id,
+    prescribedExerciseId: prescribedExercise.id,
+    exerciseCode: prescribedExercise.exerciseName,
+    secondsPerRep: prescribedExercise.numberOfSeconds,
+    repsPerSession: prescribedExercise.numberOfRepetions,
+    targetBpm: prescribedExercise.metronomeBpm,
+    position: prescribedExercise.position,
+    background: prescribedExercise.background,
+    recommendedVAS: prescribedExercise.recomendedVAS,
+  };
+}
+
+export async function getTreatmentPlanForUser(patientUserId: string) {
   const profileRows = await db
     .select({
       numberOfSessions: users.numberOfSessions,
     })
     .from(users)
-    .where(eq(users.workosUserId, userId))
+    .where(eq(users.workosUserId, patientUserId))
     .limit(1);
 
   const profile = profileRows[0];
@@ -37,12 +64,12 @@ export async function getTreatmentPlanForUser(userId: string) {
   const latestPlanRows = await db
     .select({
       id: treatmentPlans.id,
-      numberOfSessions: treatmentPlans.numberOfSessions,
+      sessionsPerDay: treatmentPlans.sessionsPerDay,
       effectiveFrom: treatmentPlans.effectiveFrom,
       createdAt: treatmentPlans.createdAt,
     })
     .from(treatmentPlans)
-    .where(eq(treatmentPlans.userId, userId))
+    .where(eq(treatmentPlans.patientUserId, patientUserId))
     .orderBy(asc(treatmentPlans.effectiveFrom), asc(treatmentPlans.id));
 
   const latestPlan = latestPlanRows[latestPlanRows.length - 1] ?? null;
@@ -59,30 +86,20 @@ export async function getTreatmentPlanForUser(userId: string) {
       recomendedVAS: prescribedExercises.recomendedVAS,
     })
     .from(prescribedExercises)
-    .where(and(eq(prescribedExercises.userId, userId), eq(prescribedExercises.active, true)))
+    .where(and(eq(prescribedExercises.userId, patientUserId), eq(prescribedExercises.active, true)))
     .orderBy(prescribedExercises.createdAt, prescribedExercises.id);
 
   return {
     plan: latestPlan
       ? {
           id: latestPlan.id,
-          numberOfSessions: latestPlan.numberOfSessions,
+          sessionsPerDay: latestPlan.sessionsPerDay,
           effectiveFrom: latestPlan.effectiveFrom.toISOString(),
           createdAt: latestPlan.createdAt.toISOString(),
         }
       : null,
-    numberOfSessions: profile.numberOfSessions,
-    exercises: activePrescribedExercises.map((prescribedExercise) => ({
-      id: prescribedExercise.id,
-      prescribedExerciseId: prescribedExercise.id,
-      exerciseName: prescribedExercise.exerciseName,
-      numberOfSeconds: prescribedExercise.numberOfSeconds,
-      numberOfRepetions: prescribedExercise.numberOfRepetions,
-      metronomeBpm: prescribedExercise.metronomeBpm,
-      position: prescribedExercise.position,
-      background: prescribedExercise.background,
-      recomendedVAS: prescribedExercise.recomendedVAS,
-    })),
+    sessionsPerDay: profile.numberOfSessions,
+    exercises: activePrescribedExercises.map(mapPrescribedExerciseToTreatmentPlanExercise),
   };
 }
 
@@ -109,7 +126,7 @@ async function syncActivePrescribedExercisesForUser(
     existingPrescribedExercises.map((prescribedExercise) => [prescribedExercise.exerciseName, prescribedExercise]),
   );
   const nextExerciseNames = new Set<string>(
-    exercises.map((exercise) => exercise.exerciseName),
+    exercises.map((exercise) => exercise.exerciseCode),
   );
   const updatedPrescribedExercises: Array<{
     id: number;
@@ -124,28 +141,28 @@ async function syncActivePrescribedExercisesForUser(
   }> = [];
 
   for (const exercise of exercises) {
-    const existing = existingByName.get(exercise.exerciseName);
+    const existing = existingByName.get(exercise.exerciseCode);
     if (existing) {
       const hasChanges =
-        existing.numberOfSeconds !== exercise.numberOfSeconds ||
-        existing.numberOfRepetions !== exercise.numberOfRepetions ||
-        existing.metronomeBpm !== exercise.metronomeBpm ||
+        existing.numberOfSeconds !== exercise.secondsPerRep ||
+        existing.numberOfRepetions !== exercise.repsPerSession ||
+        existing.metronomeBpm !== exercise.targetBpm ||
         existing.position !== exercise.position ||
         existing.background !== exercise.background ||
-        existing.recomendedVAS !== exercise.recomendedVAS ||
+        existing.recomendedVAS !== exercise.recommendedVAS ||
         !existing.active;
 
       if (hasChanges) {
         const updated = await db
           .update(prescribedExercises)
           .set({
-            numberOfSeconds: exercise.numberOfSeconds,
-            numberOfRepetions: exercise.numberOfRepetions,
-            metronomeBpm: exercise.metronomeBpm,
+            numberOfSeconds: exercise.secondsPerRep,
+            numberOfRepetions: exercise.repsPerSession,
+            metronomeBpm: exercise.targetBpm,
             metronomeBpmTemp: null,
             position: exercise.position,
             background: exercise.background,
-            recomendedVAS: exercise.recomendedVAS,
+            recomendedVAS: exercise.recommendedVAS,
             active: true,
           })
           .where(eq(prescribedExercises.id, existing.id))
@@ -187,13 +204,13 @@ async function syncActivePrescribedExercisesForUser(
       .insert(prescribedExercises)
       .values({
         userId,
-        exerciseName: exercise.exerciseName,
-        numberOfSeconds: exercise.numberOfSeconds,
-        numberOfRepetions: exercise.numberOfRepetions,
-        metronomeBpm: exercise.metronomeBpm,
+        exerciseName: exercise.exerciseCode,
+        numberOfSeconds: exercise.secondsPerRep,
+        numberOfRepetions: exercise.repsPerSession,
+        metronomeBpm: exercise.targetBpm,
         position: exercise.position,
         background: exercise.background,
-        recomendedVAS: exercise.recomendedVAS,
+        recomendedVAS: exercise.recommendedVAS,
         active: true,
       })
       .returning();
@@ -232,14 +249,14 @@ export async function saveTreatmentPlanForUser(
   body: SaveTreatmentPlanBody,
 ) {
   const effectiveFrom = new Date();
-  const { userId, timeZone, numberOfSessions, exercises } = body;
+  const { patientUserId, timeZone, sessionsPerDay, exercises } = body;
 
   const planInsert = await db
     .insert(treatmentPlans)
     .values({
-      userId,
-      createdBy: clinicianUserId,
-      numberOfSessions,
+      patientUserId,
+      clinicianUserId,
+      sessionsPerDay,
       effectiveFrom,
     })
     .returning();
@@ -252,13 +269,13 @@ export async function saveTreatmentPlanForUser(
   await db.insert(treatmentPlanExercises).values(
     exercises.map((exercise) => ({
       treatmentPlanId: planId,
-      exerciseName: exercise.exerciseName,
-      numberOfSeconds: exercise.numberOfSeconds,
-      numberOfRepetions: exercise.numberOfRepetions,
-      metronomeBpm: exercise.metronomeBpm,
+      exerciseCode: exercise.exerciseCode,
+      secondsPerRep: exercise.secondsPerRep,
+      repsPerSession: exercise.repsPerSession,
+      targetBpm: exercise.targetBpm,
       position: exercise.position,
       background: exercise.background,
-      recomendedVAS: exercise.recomendedVAS,
+      recommendedVAS: exercise.recommendedVAS,
     })),
   );
 
@@ -267,26 +284,26 @@ export async function saveTreatmentPlanForUser(
       numberOfSessions: users.numberOfSessions,
     })
     .from(users)
-    .where(eq(users.workosUserId, userId))
+    .where(eq(users.workosUserId, patientUserId))
     .limit(1);
 
   const previousSessions = profileRows[0]?.numberOfSessions ?? 1;
 
   await db
     .update(users)
-    .set({ numberOfSessions })
-    .where(eq(users.workosUserId, userId));
+    .set({ numberOfSessions: sessionsPerDay })
+    .where(eq(users.workosUserId, patientUserId));
 
-  if (previousSessions !== numberOfSessions) {
-    await recordUserSessionHistorySnapshot(userId, numberOfSessions, effectiveFrom);
+  if (previousSessions !== sessionsPerDay) {
+    await recordUserSessionHistorySnapshot(patientUserId, sessionsPerDay, effectiveFrom);
   }
 
-  const activePrescribedExercises = await syncActivePrescribedExercisesForUser(userId, exercises);
-  await applyTreatmentPlanToTodaySchedule(userId, timeZone);
+  const activePrescribedExercises = await syncActivePrescribedExercisesForUser(patientUserId, exercises);
+  await applyTreatmentPlanToTodaySchedule(patientUserId, timeZone);
 
   return {
     planId,
-    numberOfSessions,
-    exercises: activePrescribedExercises,
+    sessionsPerDay,
+    exercises: activePrescribedExercises.map(mapPrescribedExerciseToTreatmentPlanExercise),
   };
 }

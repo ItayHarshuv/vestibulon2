@@ -55,3 +55,27 @@ If you prefer to run everything on your machine:
 
 1) Create `.env` from `.env.example` and ensure `DATABASE_URL` points to a reachable Postgres (example uses `localhost:5432`).\n+2) Start a local Postgres (or use `./start-database.sh`).\n+3) Run `npm install` then `npm run dev`.
 
+
+##general todos
+[ ] review notification + monitoring
+[ ] add app usage time, notification sent, review times of practice data
+[ ] make unique keys for the exercise instead of key by name
+[ ] figure what to do on days where the treatment plan changed
+[ ] 
+
+##database refactoring task
+### deletion:
+Whole table:
+[ ] prescribed_exercise
+[ ] prescribed_exercise_history
+[ ] today_reps
+[ ] user_session_history
+
+columns:
+[ ] treatment_plans.effective_from or created at (need to consolt what should stay)
+[ ] users.number_of_sessions
+[ ] today_schedule_source_date_key (not sure even what that is)
+
+### changes
+[ ] performed_reps.treatment_plan_exercise_id to reference to the treatment_plans table instead of prescribed_exercise.
+ 

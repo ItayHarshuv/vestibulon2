@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getAccessibleUserProfile,
@@ -7,7 +7,11 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { prescribedExercises } from "./db/schema.js";
+import {
+  prescribedExercises,
+  treatmentPlanExercises,
+  treatmentPlans,
+} from "./db/schema.js";
 import {
   getZodErrorMessage,
   prescribedExercisesQuerySchema,
@@ -107,6 +111,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    const latestPlanRows = await db
+      .select({
+        id: treatmentPlans.id,
+      })
+      .from(treatmentPlans)
+      .where(eq(treatmentPlans.patientUserId, targetUserId))
+      .orderBy(desc(treatmentPlans.effectiveFrom), desc(treatmentPlans.id))
+      .limit(1);
+
+    const latestTreatmentPlanId = latestPlanRows[0]?.id ?? null;
+
+    const latestPlanExerciseRows =
+      latestTreatmentPlanId === null
+        ? []
+        : await db
+            .select({
+              id: treatmentPlanExercises.id,
+              exerciseCode: treatmentPlanExercises.exerciseCode,
+            })
+            .from(treatmentPlanExercises)
+            .where(eq(treatmentPlanExercises.treatmentPlanId, latestTreatmentPlanId));
+
+    const treatmentPlanExerciseIdByCode = new Map(
+      latestPlanExerciseRows.map((row) => [row.exerciseCode, row.id]),
+    );
+
     const userPrescribedExercises = await db
       .select({
         id: prescribedExercises.id,
@@ -125,7 +155,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )
       .orderBy(prescribedExercises.createdAt);
 
-    res.status(200).json(userPrescribedExercises);
+    res.status(200).json(
+      userPrescribedExercises.map((exercise) => ({
+        ...exercise,
+        treatmentPlanExerciseId:
+          treatmentPlanExerciseIdByCode.get(exercise.exerciseName) ?? null,
+      })),
+    );
   } catch (error) {
     console.error("Error fetching prescribed exercises:", error);
     res.status(500).json({ error: "Failed to fetch prescribed exercises" });

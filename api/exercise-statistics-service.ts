@@ -133,7 +133,7 @@ export async function getExerciseStatisticsForUser(
           endTime: performedReps.endTime,
         })
         .from(performedReps)
-        .where(and(eq(performedReps.userId, userId), isNotNull(performedReps.endTime)))
+        .where(and(eq(performedReps.patientUserId, userId), isNotNull(performedReps.endTime)))
         .orderBy(asc(performedReps.endTime), asc(performedReps.id)),
     ]);
 
