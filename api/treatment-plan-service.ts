@@ -37,12 +37,12 @@ export async function getTreatmentPlanForUser(userId: string) {
   const latestPlanRows = await db
     .select({
       id: treatmentPlans.id,
-      numberOfSessions: treatmentPlans.numberOfSessions,
+      numberOfSessions: treatmentPlans.sessionsPerDay,
       effectiveFrom: treatmentPlans.effectiveFrom,
       createdAt: treatmentPlans.createdAt,
     })
     .from(treatmentPlans)
-    .where(eq(treatmentPlans.userId, userId))
+    .where(eq(treatmentPlans.patientUserId, userId))
     .orderBy(asc(treatmentPlans.effectiveFrom), asc(treatmentPlans.id));
 
   const latestPlan = latestPlanRows[latestPlanRows.length - 1] ?? null;
@@ -237,9 +237,9 @@ export async function saveTreatmentPlanForUser(
   const planInsert = await db
     .insert(treatmentPlans)
     .values({
-      userId,
-      createdBy: clinicianUserId,
-      numberOfSessions,
+      patientUserId: userId,
+      clinicianUserId,
+      sessionsPerDay: numberOfSessions,
       effectiveFrom,
     })
     .returning();
@@ -252,13 +252,13 @@ export async function saveTreatmentPlanForUser(
   await db.insert(treatmentPlanExercises).values(
     exercises.map((exercise) => ({
       treatmentPlanId: planId,
-      exerciseName: exercise.exerciseName,
-      numberOfSeconds: exercise.numberOfSeconds,
-      numberOfRepetions: exercise.numberOfRepetions,
-      metronomeBpm: exercise.metronomeBpm,
+      exerciseCode: exercise.exerciseName,
+      secondsPerRep: exercise.numberOfSeconds,
+      repsPerSession: exercise.numberOfRepetions,
+      targetBpm: exercise.metronomeBpm,
       position: exercise.position,
       background: exercise.background,
-      recomendedVAS: exercise.recomendedVAS,
+      recommendedVAS: exercise.recomendedVAS,
     })),
   );
 

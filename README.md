@@ -55,3 +55,11 @@ If you prefer to run everything on your machine:
 
 1) Create `.env` from `.env.example` and ensure `DATABASE_URL` points to a reachable Postgres (example uses `localhost:5432`).\n+2) Start a local Postgres (or use `./start-database.sh`).\n+3) Run `npm install` then `npm run dev`.
 
+
+##general todos
+[ ] review notification + monitoring
+[ ] add app usage time, notification sent, review times of practice data
+[ ] make unique keys for the exercise instead of key by name
+[ ] figure what to do on days where the treatment plan changed
+[ ] 
+ 
