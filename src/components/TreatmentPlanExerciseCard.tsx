@@ -8,13 +8,13 @@ import {
 } from "~/data/content";
 
 export type TreatmentPlanExerciseDraft = {
-  exerciseName: string;
-  numberOfSeconds: number | "";
-  numberOfRepetions: number | "";
-  metronomeBpm: number;
+  exerciseCode: string;
+  secondsPerRep: number | "";
+  repsPerSession: number | "";
+  targetBpm: number;
   position: Position;
   background: Background;
-  recomendedVAS: number;
+  recommendedVAS: number;
 };
 
 type TreatmentPlanExerciseCardProps = {
@@ -50,7 +50,7 @@ export function TreatmentPlanExerciseCard({
 
   return (
     <section className="rounded-2xl border border-black bg-white p-4 shadow-sm sm:p-6">
-      <h3 className="text-right text-2xl font-bold text-gray-900">{exercise.exerciseName}</h3>
+      <h3 className="text-right text-2xl font-bold text-gray-900">{exercise.exerciseCode}</h3>
 
       <div className="mt-6 space-y-6">
         <label className="block pt-2 text-right">
@@ -61,13 +61,13 @@ export function TreatmentPlanExerciseCard({
             min={1}
             max={600}
             required
-            value={exercise.numberOfSeconds}
+            value={exercise.secondsPerRep}
             onInvalid={handleRequiredNumberInvalid}
             onInput={clearValidationMessage}
             onChange={(event) =>
               onChange({
                 ...exercise,
-                numberOfSeconds: getNumberInputValue(event.target.value),
+                secondsPerRep: getNumberInputValue(event.target.value),
               })
             }
             className="mt-2 block w-full rounded-xl border border-gray-300 px-3 py-2 text-right text-xl text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -82,13 +82,13 @@ export function TreatmentPlanExerciseCard({
             min={1}
             max={50}
             required
-            value={exercise.numberOfRepetions}
+            value={exercise.repsPerSession}
             onInvalid={handleRequiredNumberInvalid}
             onInput={clearValidationMessage}
             onChange={(event) =>
               onChange({
                 ...exercise,
-                numberOfRepetions: getNumberInputValue(event.target.value),
+                repsPerSession: getNumberInputValue(event.target.value),
               })
             }
             className="mt-2 block w-full rounded-xl border border-gray-300 px-3 py-2 text-right text-xl text-gray-900 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -97,13 +97,13 @@ export function TreatmentPlanExerciseCard({
 
         <div className="pt-6">
           <Metronome
-            bpm={exercise.metronomeBpm}
+            bpm={exercise.targetBpm}
             isRunning={metronomeRunning}
             onBpmChange={(nextBpm) => {
               setMetronomeRunning(true);
               onChange({
                 ...exercise,
-                metronomeBpm: nextBpm,
+                targetBpm: nextBpm,
               });
             }}
           />
@@ -161,18 +161,18 @@ export function TreatmentPlanExerciseCard({
 
         <div className="pt-6">
           <p className="text-right text-lg font-semibold text-gray-900">
-            VAS רצוי: {exercise.recomendedVAS}
+            VAS רצוי: {exercise.recommendedVAS}
           </p>
           <input
             type="range"
             min={0}
             max={10}
             step={1}
-            value={exercise.recomendedVAS}
+            value={exercise.recommendedVAS}
             onChange={(event) =>
               onChange({
                 ...exercise,
-                recomendedVAS: Number(event.target.value),
+                recommendedVAS: Number(event.target.value),
               })
             }
             className="mt-4 h-2 w-full cursor-pointer accent-blue-500"
