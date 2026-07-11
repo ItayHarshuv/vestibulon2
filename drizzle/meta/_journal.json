@@ -120,6 +120,13 @@
       "when": 1783869180000,
       "tag": "0016_rename_treatment_plan_exercise_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783870200000,
+      "tag": "0017_rename_performed_reps_columns",
+      "breakpoints": true
     }
   ]
 }

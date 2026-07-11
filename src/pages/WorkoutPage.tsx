@@ -235,10 +235,14 @@ export function WorkoutPage() {
 
     void (async () => {
       try {
+        if (prescribedExercise.treatmentPlanExerciseId == null) {
+          throw new Error("Missing treatment plan exercise id");
+        }
+
         const response = await apiFetch("/api/performed-reps", {
           method: "POST",
           body: JSON.stringify({
-            prescribedExerciseId: prescribedExercise.id,
+            treatmentPlanExerciseId: prescribedExercise.treatmentPlanExerciseId,
             practiceTimeKey: requestedPracticeTimeKey ?? undefined,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),

@@ -7,7 +7,13 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { performedReps, prescribedExercises, todayReps, users } from "./db/schema.js";
+import {
+  performedReps,
+  todayReps,
+  treatmentPlanExercises,
+  treatmentPlans,
+  users,
+} from "./db/schema.js";
 import {
   assignPerformedRepToTodayRepSlot,
   ensureTodayRepsForUser,
@@ -64,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(performedReps)
         .where(
           and(
-            eq(performedReps.userId, targetUserId),
+            eq(performedReps.patientUserId, targetUserId),
             inArray(performedReps.id, queryResult.data.ids),
           ),
         )
@@ -81,24 +87,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const { practiceTimeKey, prescribedExerciseId, timeZone } = bodyResult.data;
-      const matchingPrescribedExercises = await db
+      const { practiceTimeKey, timeZone, treatmentPlanExerciseId } = bodyResult.data;
+      const matchingTreatmentPlanExercises = await db
         .select({
-          id: prescribedExercises.id,
-          exerciseName: prescribedExercises.exerciseName,
+          id: treatmentPlanExercises.id,
+          exerciseName: treatmentPlanExercises.exerciseCode,
         })
-        .from(prescribedExercises)
+        .from(treatmentPlanExercises)
+        .innerJoin(
+          treatmentPlans,
+          eq(treatmentPlanExercises.treatmentPlanId, treatmentPlans.id),
+        )
         .where(
           and(
-            eq(prescribedExercises.id, prescribedExerciseId),
-            eq(prescribedExercises.userId, authenticatedUserId),
+            eq(treatmentPlanExercises.id, treatmentPlanExerciseId),
+            eq(treatmentPlans.patientUserId, authenticatedUserId),
           ),
         )
         .limit(1);
 
-      const prescribedExercise = matchingPrescribedExercises[0];
-      if (!prescribedExercise) {
-        res.status(404).json({ error: "Prescribed exercise not found" });
+      const treatmentPlanExercise = matchingTreatmentPlanExercises[0];
+      if (!treatmentPlanExercise) {
+        res.status(404).json({ error: "Treatment plan exercise not found" });
         return;
       }
 
@@ -109,9 +119,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const inserted = await db
         .insert(performedReps)
         .values({
-          prescribedExerciseId: prescribedExercise.id,
-          userId: authenticatedUserId,
-          exerciseName: prescribedExercise.exerciseName,
+          treatmentPlanExerciseId: treatmentPlanExercise.id,
+          patientUserId: authenticatedUserId,
+          exerciseName: treatmentPlanExercise.exerciseName,
           startTime: now,
         })
         .returning();
@@ -124,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const assigned = await assignPerformedRepToTodayRepSlot(
         authenticatedUserId,
-        prescribedExercise.exerciseName,
+        treatmentPlanExercise.exerciseName,
         createdPerformedRep.id,
         timeZone,
         practiceTimeKey,
@@ -181,7 +191,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .where(
             and(
               eq(performedReps.id, performedRepId),
-              eq(performedReps.userId, authenticatedUserId),
+              eq(performedReps.patientUserId, authenticatedUserId),
             ),
           )
           .limit(1);
@@ -224,7 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .where(
           and(
             eq(performedReps.id, performedRepId),
-            eq(performedReps.userId, authenticatedUserId),
+            eq(performedReps.patientUserId, authenticatedUserId),
           ),
         )
         .returning();

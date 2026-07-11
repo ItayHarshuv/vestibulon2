@@ -67,31 +67,6 @@ export const prescribedExercises = createTable(
   (t) => [index("prescribed_exercises_user_exercise_idx").on(t.userId, t.exerciseName)],
 );
 
-export const performedReps = createTable(
-  "performed_reps",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    prescribedExerciseId: d.integer("prescribed_exercise_id").references(() => prescribedExercises.id, {
-      onDelete: "cascade",
-    }),
-    userId: d.varchar("user_id", { length: 256 }).notNull(),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
-    dizziness: d.integer(),
-    nausea: d.integer(),
-    generalDifficulty: d.integer("general_difficulty"),
-    restTime: d.integer("rest_time"),
-    startTime: d.timestamp("start_time", { withTimezone: true }).notNull(),
-    endTime: d.timestamp("end_time", { withTimezone: true }),
-    bpmEndOfRep: d.integer("bpm_end_of_rep"),
-    flagInterrupted: d.boolean("flag_interrupted").default(false),
-    flagPaused: d.boolean("flag_paused").default(false),
-  }),
-  (t) => [
-    index("performed_reps_prescribed_exercise_idx").on(t.prescribedExerciseId),
-    index("performed_reps_user_exercise_idx").on(t.userId, t.exerciseName),
-  ],
-);
-
 export const prescribedExerciseHistory = createTable(
   "prescribed_exercise_history",
   (d) => ({
@@ -195,6 +170,33 @@ export const treatmentPlanExercises = createTable(
   ],
 );
 
+export const performedReps = createTable(
+  "performed_reps",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    treatmentPlanExerciseId: d
+      .integer("treatment_plan_exercise_id")
+      .references(() => treatmentPlanExercises.id, {
+        onDelete: "cascade",
+      }),
+    patientUserId: d.varchar("patient_user_id", { length: 256 }).notNull(),
+    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    dizziness: d.integer(),
+    nausea: d.integer(),
+    generalDifficulty: d.integer("general_difficulty"),
+    restTime: d.integer("rest_time"),
+    startTime: d.timestamp("start_time", { withTimezone: true }).notNull(),
+    endTime: d.timestamp("end_time", { withTimezone: true }),
+    bpmEndOfRep: d.integer("bpm_end_of_rep"),
+    flagInterrupted: d.boolean("flag_interrupted").default(false),
+    flagPaused: d.boolean("flag_paused").default(false),
+  }),
+  (t) => [
+    index("performed_reps_treatment_plan_exercise_idx").on(t.treatmentPlanExerciseId),
+    index("performed_reps_patient_user_exercise_idx").on(t.patientUserId, t.exerciseName),
+  ],
+);
+
 export const todayReps = createTable(
   "today_reps",
   (d) => ({
@@ -224,7 +226,6 @@ export const prescribedExercisesRelations = relations(prescribedExercises, ({ ma
     fields: [prescribedExercises.userId],
     references: [users.workosUserId],
   }),
-  performedReps: many(performedReps),
   history: many(prescribedExerciseHistory),
 }));
 
@@ -243,9 +244,9 @@ export const userSessionHistoryRelations = relations(userSessionHistory, ({ one 
 }));
 
 export const performedRepsRelations = relations(performedReps, ({ one }) => ({
-  prescribedExercise: one(prescribedExercises, {
-    fields: [performedReps.prescribedExerciseId],
-    references: [prescribedExercises.id],
+  treatmentPlanExercise: one(treatmentPlanExercises, {
+    fields: [performedReps.treatmentPlanExerciseId],
+    references: [treatmentPlanExercises.id],
   }),
 }));
 
@@ -264,11 +265,12 @@ export const treatmentPlansRelations = relations(treatmentPlans, ({ one, many })
 
 export const treatmentPlanExercisesRelations = relations(
   treatmentPlanExercises,
-  ({ one }) => ({
+  ({ many, one }) => ({
     treatmentPlan: one(treatmentPlans, {
       fields: [treatmentPlanExercises.treatmentPlanId],
       references: [treatmentPlans.id],
     }),
+    performedReps: many(performedReps),
   }),
 );
 

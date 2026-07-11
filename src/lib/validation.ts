@@ -220,6 +220,7 @@ export const updatePrescribedExerciseBodySchema = z.preprocess(
 
 export const apiPrescribedExerciseSchema = z.object({
   id: z.number().int(),
+  treatmentPlanExerciseId: z.number().int().nullable().optional(),
   exerciseName: z.string(),
   numberOfSeconds: z.number().int(),
   numberOfRepetions: z.number().int(),
@@ -326,7 +327,7 @@ const practiceTimeKeySchema = z
 export const createPerformedRepBodySchema = z.preprocess(
   coerceObject,
   z.object({
-    prescribedExerciseId: integerField("prescribedExerciseId is required"),
+    treatmentPlanExerciseId: integerField("treatmentPlanExerciseId is required"),
     timeZone: requiredTrimmedString("timeZone is required"),
     practiceTimeKey: practiceTimeKeySchema.optional(),
   }),
