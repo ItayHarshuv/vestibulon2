@@ -62,4 +62,20 @@ If you prefer to run everything on your machine:
 [ ] make unique keys for the exercise instead of key by name
 [ ] figure what to do on days where the treatment plan changed
 [ ] 
+
+##database refactoring task
+### deletion:
+Whole table:
+[ ] prescribed_exercise
+[ ] prescribed_exercise_history
+[ ] today_reps
+[ ] user_session_history
+
+columns:
+[ ] treatment_plans.effective_from or created at (need to consolt what should stay)
+[ ] users.number_of_sessions
+[ ] today_schedule_source_date_key (not sure even what that is)
+
+### changes
+[ ] performed_reps.treatment_plan_exercise_id to reference to the treatment_plans table instead of prescribed_exercise.
  
