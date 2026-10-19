@@ -45,7 +45,8 @@ function SliderQuestion({ label, value, onChange }: SliderQuestionProps) {
             onChange={(event) => {
               onChange(Number(event.target.value));
             }}
-            onPointerDown={() => {
+            onPointerDown={(event) => {
+              onChange(Number(event.currentTarget.value));
               setIsInteracting(true);
             }}
             onPointerUp={() => {
@@ -215,7 +216,11 @@ export function WorkoutFinishPage() {
         </p>
       )}
 
-      <div className="mt-12 flex justify-center">
+      <p className="mt-10 text-center text-xl font-semibold text-gray-700">
+        ניתן לבחור 0 בנגיעה בסרגל.
+      </p>
+
+      <div className="mt-4 flex justify-center">
         <button
           type="button"
           onClick={() => {
