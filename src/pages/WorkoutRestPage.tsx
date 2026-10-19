@@ -4,7 +4,6 @@ import { WorkoutStopwatch } from "~/components/WorkoutStopwatch";
 import { apiFetch } from "~/lib/api";
 import {
   getZodErrorMessage,
-  prescribedExercisesResponseSchema,
   performedRepsResponseSchema,
   todayRepsResponseSchema,
   workoutFinishRouteParamsSchema,
@@ -111,53 +110,22 @@ export function WorkoutRestPage() {
         setIsSessionComplete(false);
         setRestTimeEntries([]);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
-          apiFetch(
-            `/api/prescribed-exercises?timeZone=${encodeURIComponent(timeZone)}${
-              requestedPracticeTimeKey
-                ? `&practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`
-                : ""
-            }`,
-          ),
-          apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
-        ]);
-
-        if (!prescribedExercisesResponse.ok) {
-          throw new Error("Failed to fetch prescribed exercises");
-        }
+        const todayRepsResponse = await apiFetch(
+          `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
+        );
 
         if (!todayRepsResponse.ok) {
           throw new Error("Failed to fetch today's reps");
         }
 
-        const prescribedExercisesResult = prescribedExercisesResponseSchema.safeParse(
-          await prescribedExercisesResponse.json(),
-        );
         const todayRepsResult = todayRepsResponseSchema.safeParse(
           await todayRepsResponse.json(),
         );
-
-        if (!prescribedExercisesResult.success) {
-          throw new Error(
-            getZodErrorMessage(prescribedExercisesResult.error, "Invalid prescribed exercises response"),
-          );
-        }
 
         if (!todayRepsResult.success) {
           throw new Error(
             getZodErrorMessage(todayRepsResult.error, "Invalid today's reps response"),
           );
-        }
-
-        const currentPrescribedExercise =
-          prescribedExercisesResult.data.find((prescribedExercise) => prescribedExercise.id === parsedPrescribedExerciseId) ?? null;
-
-        if (!currentPrescribedExercise) {
-          if (requestedPracticeTimeKey === null) {
-            void navigate("/select-exercise", { replace: true });
-            return;
-          }
-          throw new Error("Prescribed exercise not found");
         }
 
         const currentPerformedRepRow = todayRepsResult.data.find(
@@ -172,16 +140,24 @@ export function WorkoutRestPage() {
         );
         const currentSessionRows = todayRepsResult.data.filter(
           (row) =>
-            getPracticeTimeKey(new Date(row.practiceTime)) === currentSessionPracticeTimeKey,
+            currentPerformedRepRow.sessionIndex !== undefined &&
+            row.sessionIndex !== undefined
+              ? row.sessionIndex === currentPerformedRepRow.sessionIndex
+              : getPracticeTimeKey(new Date(row.practiceTime)) ===
+                currentSessionPracticeTimeKey,
         );
-        const completedCurrentExerciseRows = currentSessionRows.filter(
+        const currentExerciseRows = currentSessionRows.filter(
           (row) =>
-            row.exerciseName === currentPrescribedExercise.exerciseName &&
-            row.performedRepId !== null,
+            row.treatmentPlanExerciseId !== undefined
+              ? row.treatmentPlanExerciseId === parsedPrescribedExerciseId
+              : row.exerciseName === currentPerformedRepRow.exerciseName,
         );
-        const completedCurrentExerciseReps = completedCurrentExerciseRows.length;
+        const completedCurrentExerciseRows = currentExerciseRows.filter(
+          (row) => row.performedRepId !== null,
+        );
         const lastRepInExercise =
-          completedCurrentExerciseReps >= currentPrescribedExercise.numberOfRepetions;
+          currentExerciseRows.length > 0 &&
+          completedCurrentExerciseRows.length === currentExerciseRows.length;
 
         setIsLastRepInExercise(lastRepInExercise);
         setIsSessionComplete(
