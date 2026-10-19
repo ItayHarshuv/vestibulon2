@@ -3,7 +3,7 @@ import {
   getAuthenticatedUser,
   handleOptions,
   setApiHeaders,
-} from "../auth.js";
+} from "../../../api/auth.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res, "GET,OPTIONS")) {

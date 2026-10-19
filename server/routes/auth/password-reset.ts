@@ -4,11 +4,11 @@ import {
   getWorkOS,
   handleOptions,
   setApiHeaders,
-} from "../auth.js";
+} from "../../../api/auth.js";
 import {
   getZodErrorMessage,
   passwordResetRequestSchema,
-} from "../../src/lib/validation.js";
+} from "../../../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res, "POST,OPTIONS")) {

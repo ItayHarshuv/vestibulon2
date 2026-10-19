@@ -6,11 +6,11 @@ import {
   handleOptions,
   setApiHeaders,
   setSessionCookie,
-} from "../auth.js";
+} from "../../../api/auth.js";
 import {
   getZodErrorMessage,
   signInRequestSchema,
-} from "../../src/lib/validation.js";
+} from "../../../src/lib/validation.js";
 
 function getWorkOSErrorCode(error: unknown) {
   if (error && typeof error === "object") {
