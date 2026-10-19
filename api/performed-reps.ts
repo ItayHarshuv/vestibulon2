@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getAccessibleUserProfile,
@@ -36,6 +36,7 @@ async function updatePerformedRepAndPoints(
       .select({
         startTime: performedReps.startTime,
         endTime: performedReps.endTime,
+        restTime: performedReps.restTime,
         scheduledDate: performedReps.scheduledDate,
         sessionIndex: performedReps.sessionIndex,
         treatmentPlanExerciseId: performedReps.treatmentPlanExerciseId,
@@ -61,6 +62,7 @@ async function updatePerformedRepAndPoints(
       endTime?: Date;
       bpmEndOfRep?: number;
       flagPaused?: boolean;
+      restTime?: number;
       dizziness?: number;
       nausea?: number;
       generalDifficulty?: number;
@@ -74,6 +76,16 @@ async function updatePerformedRepAndPoints(
     }
     if (body.bpmEndOfRep !== undefined) values.bpmEndOfRep = body.bpmEndOfRep;
     if (body.flagPaused !== undefined) values.flagPaused = body.flagPaused;
+    if (
+      body.finalizeRest === true &&
+      current.endTime !== null &&
+      current.restTime === null
+    ) {
+      values.restTime = Math.max(
+        0,
+        Math.floor((Date.now() - current.endTime.getTime()) / 1000),
+      );
+    }
     if (body.dizziness !== undefined) values.dizziness = body.dizziness;
     if (body.nausea !== undefined) values.nausea = body.nausea;
     if (body.generalDifficulty !== undefined) {
@@ -200,6 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           id: performedReps.id,
           startTime: performedReps.startTime,
           endTime: performedReps.endTime,
+          restTime: performedReps.restTime,
         })
         .from(performedReps)
         .where(
@@ -299,6 +312,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(409).json({ error: "Rep slot was already claimed" });
         return;
       }
+
+      const previousCompletedRows = await db
+        .select({
+          id: performedReps.id,
+          endTime: performedReps.endTime,
+          restTime: performedReps.restTime,
+        })
+        .from(performedReps)
+        .where(
+          and(
+            eq(performedReps.patientUserId, userId),
+            eq(performedReps.scheduledDate, inserted[0].scheduledDate!),
+            eq(performedReps.sessionIndex, inserted[0].sessionIndex!),
+            isNotNull(performedReps.endTime),
+          ),
+        )
+        .orderBy(desc(performedReps.endTime), desc(performedReps.id))
+        .limit(1);
+      const previousCompleted = previousCompletedRows[0];
+      if (
+        previousCompleted?.endTime &&
+        previousCompleted.restTime === null
+      ) {
+        await db
+          .update(performedReps)
+          .set({
+            restTime: Math.max(
+              0,
+              Math.floor(
+                (inserted[0].startTime.getTime() -
+                  previousCompleted.endTime.getTime()) /
+                  1000,
+              ),
+            ),
+          })
+          .where(eq(performedReps.id, previousCompleted.id));
+      }
+
       res.status(201).json(inserted[0]);
       return;
     }

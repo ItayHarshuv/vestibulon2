@@ -6,6 +6,7 @@ import {
   getZodErrorMessage,
   performedRepsResponseSchema,
   todayRepsResponseSchema,
+  updatePerformedRepResponseSchema,
   workoutFinishRouteParamsSchema,
   workoutLocationStateSchema,
 } from "~/lib/validation";
@@ -35,12 +36,15 @@ export function WorkoutRestPage() {
   }>();
   const location = useLocation();
   const fallbackEndTimestampRef = useRef<number>(Date.now());
+  const hasFinalizedRestRef = useRef(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(true);
+  const [isFinalizingRest, setIsFinalizingRest] = useState(false);
   const [isLastRepInExercise, setIsLastRepInExercise] = useState(false);
   const [isSessionComplete, setIsSessionComplete] = useState(false);
   const [restTimeEntries, setRestTimeEntries] = useState<RestTimeEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const locationStateResult = workoutLocationStateSchema.safeParse(
     location.state,
@@ -90,6 +94,32 @@ export function WorkoutRestPage() {
   }, [restTimeEntries]);
 
   useEffect(() => {
+    hasFinalizedRestRef.current = false;
+
+    if (parsedPerformedRepId === null) return;
+
+    const finalizeOnPageExit = () => {
+      if (hasFinalizedRestRef.current) return;
+
+      void apiFetch("/api/performed-reps", {
+        method: "PATCH",
+        body: JSON.stringify({
+          performedRepId: parsedPerformedRepId,
+          finalizeRest: true,
+        }),
+        keepalive: true,
+      }).catch(() => {
+        // A document unload cannot reliably wait for or report this request.
+      });
+    };
+
+    window.addEventListener("pagehide", finalizeOnPageExit);
+    return () => {
+      window.removeEventListener("pagehide", finalizeOnPageExit);
+    };
+  }, [parsedPerformedRepId]);
+
+  useEffect(() => {
     if (parsedPrescribedExerciseId === null || parsedPerformedRepId === null) {
       setIsLoading(false);
       setRestTimeEntries([]);
@@ -109,6 +139,7 @@ export function WorkoutRestPage() {
         setIsLastRepInExercise(false);
         setIsSessionComplete(false);
         setRestTimeEntries([]);
+        setActionError(null);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const todayRepsResponse = await apiFetch(
           `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
@@ -208,6 +239,14 @@ export function WorkoutRestPage() {
         const nextRestTimeEntries = orderedCompletedPerformedReps.map(
           (performedRep, index) => {
             const label = `תרגיל ${index + 1}`;
+            if (performedRep.restTime !== null) {
+              return {
+                label,
+                elapsedSeconds: performedRep.restTime,
+                liveStartTimestampMs: null,
+              };
+            }
+
             const nextPerformedRep =
               orderedCompletedPerformedReps[index + 1] ?? null;
             const performedRepEndTimestampMs = performedRep.endTime
@@ -270,6 +309,40 @@ export function WorkoutRestPage() {
     workoutEndTimestampMs,
   ]);
 
+  async function finalizeRestAndNavigate(nextUrl: string) {
+    if (parsedPerformedRepId === null || isFinalizingRest) return;
+
+    try {
+      setIsFinalizingRest(true);
+      setActionError(null);
+      const response = await apiFetch("/api/performed-reps", {
+        method: "PATCH",
+        body: JSON.stringify({
+          performedRepId: parsedPerformedRepId,
+          finalizeRest: true,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to finalize rest time");
+      }
+
+      const result = updatePerformedRepResponseSchema.safeParse(
+        await response.json(),
+      );
+      if (!result.success || typeof result.data.restTime !== "number") {
+        throw new Error("Invalid finalized rest response");
+      }
+
+      hasFinalizedRestRef.current = true;
+      await navigate(nextUrl);
+    } catch (finalizeError) {
+      console.error("Error finalizing rest time:", finalizeError);
+      setActionError("שמירת זמן המנוחה נכשלה. נא לנסות שוב.");
+    } finally {
+      setIsFinalizingRest(false);
+    }
+  }
+
   const primaryButtonLabel = isLastRepInExercise
     ? isSessionComplete
       ? "התאוששתי"
@@ -326,9 +399,9 @@ export function WorkoutRestPage() {
           מגיע לך זמן להתאושש
         </h2>
 
-        {error && (
+        {(error !== null || actionError !== null) && (
           <p className="mt-6 rounded-md bg-red-50 p-3 text-center text-sm text-red-700">
-            {error}
+            {error ?? actionError}
           </p>
         )}
 
@@ -341,7 +414,7 @@ export function WorkoutRestPage() {
             type="button"
             onClick={() => {
               if (parsedPrescribedExerciseId === null) return;
-              void navigate(
+              void finalizeRestAndNavigate(
                 isLastRepInExercise
                   ? isSessionComplete
                     ? "/session-complete"
@@ -351,7 +424,12 @@ export function WorkoutRestPage() {
                     : `/workout/${parsedPrescribedExerciseId}?practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`,
               );
             }}
-            disabled={isLoading || parsedPrescribedExerciseId === null || error !== null}
+            disabled={
+              isLoading ||
+              isFinalizingRest ||
+              parsedPrescribedExerciseId === null ||
+              error !== null
+            }
             className="w-full rounded-lg bg-emerald-400 px-6 py-6 text-2xl font-extrabold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:text-4xl"
           >
             {primaryButtonLabel}
@@ -361,8 +439,9 @@ export function WorkoutRestPage() {
             <button
               type="button"
               onClick={() => {
-                void navigate(selectExerciseUrl);
+                void finalizeRestAndNavigate(selectExerciseUrl);
               }}
+              disabled={isFinalizingRest}
               className="w-full rounded-lg border-4 border-blue-500 bg-white px-6 py-6 text-2xl font-extrabold text-gray-900 transition hover:bg-blue-50 sm:text-4xl"
             >
               אני רוצה לעבור לתרגיל אחר
@@ -373,8 +452,9 @@ export function WorkoutRestPage() {
             <button
               type="button"
               onClick={() => {
-                void navigate("/");
+                void finalizeRestAndNavigate("/");
               }}
+              disabled={isFinalizingRest}
               className="w-full rounded-lg border-4 border-blue-500 bg-white px-6 py-6 text-2xl font-extrabold text-gray-900 transition hover:bg-blue-50 sm:text-4xl"
             >
               אין ביכולתי להמשיך כעת, אשלים את התרגול בהמשך

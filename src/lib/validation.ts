@@ -428,6 +428,11 @@ const updatePerformedRepBodyBaseSchema = z
         invalid_type_error: "flagPaused must be a boolean",
       })
       .optional(),
+    finalizeRest: z
+      .boolean({
+        invalid_type_error: "finalizeRest must be a boolean",
+      })
+      .optional(),
     dizziness: integerScoreField("dizziness").optional(),
     nausea: integerScoreField("nausea").optional(),
     generalDifficulty: integerScoreField("general_difficulty").optional(),
@@ -438,6 +443,7 @@ const updatePerformedRepBodyBaseSchema = z
       value.numberOfSeconds === undefined &&
       value.bpmEndOfRep === undefined &&
       value.flagPaused === undefined &&
+      value.finalizeRest === undefined &&
       value.dizziness === undefined &&
       value.nausea === undefined &&
       value.generalDifficulty === undefined &&
@@ -469,6 +475,7 @@ export const updatePerformedRepResponseSchema = z.object({
   endTime: z.date().or(z.string()).optional(),
   bpmEndOfRep: z.number().int().optional(),
   flagPaused: z.boolean().optional(),
+  restTime: z.number().int().nonnegative().nullable().optional(),
   dizziness: z.number().int().min(0).max(10).optional(),
   nausea: z.number().int().min(0).max(10).optional(),
   generalDifficulty: z.number().int().min(0).max(10).optional(),
@@ -480,6 +487,7 @@ export const apiPerformedRepSummarySchema = z.object({
   id: z.number().int(),
   startTime: z.string(),
   endTime: z.string().nullable(),
+  restTime: z.number().int().nonnegative().nullable(),
 });
 
 export const todayRepRowSchema = z.object({
