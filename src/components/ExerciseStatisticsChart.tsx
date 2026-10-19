@@ -158,7 +158,7 @@ export function ExerciseStatisticsChart({ series }: ExerciseStatisticsChartProps
         <div ref={chartFrameRef} className="relative min-w-0 flex-1">
           {activeDay && activeTooltip && (
             <div
-              className="pointer-events-none absolute top-2 z-20 w-52 max-w-[calc(100%-0.5rem)] -translate-x-1/2 rounded-2xl bg-gray-900/90 px-4 py-3 text-right text-xs text-white shadow-xl"
+              className="pointer-events-none absolute top-2 z-30 w-52 max-w-[calc(100%-0.5rem)] -translate-x-1/2 rounded-2xl bg-gray-900/90 px-4 py-3 text-right text-xs text-white shadow-xl"
               style={{ left: `${activeTooltip.left}px` }}
             >
               <p className="text-sm font-semibold">{formatDateLabel(activeDay.date)}</p>
