@@ -262,15 +262,18 @@ export function ExerciseStatisticsPage() {
     return exercises
       .map((series) => {
         if (!selectedRange.startDate || !selectedRange.endDate) {
-          return dateFilter === "allTime" ? series : null;
+          return dateFilter === "allTime" &&
+            series.days.some((day) => day.plannedReps > 0)
+            ? series
+            : null;
         }
 
         const days = series.days.filter(
           (day) =>
-            day.date >= selectedRange.startDate! && day.date <= selectedRange.endDate!,
+            day.date >= selectedRange.startDate && day.date <= selectedRange.endDate,
         );
 
-        if (days.length === 0) {
+        if (days.length === 0 || !days.some((day) => day.plannedReps > 0)) {
           return null;
         }
 
