@@ -159,10 +159,12 @@ export function WorkoutPage() {
         }
 
         const now = new Date();
-        const scheduledRows = todayRepsResult.data.map((row) => ({
-          ...row,
-          practiceDate: new Date(row.practiceTime),
-        }));
+        const scheduledRows = todayRepsResult.data
+          .filter((row) => !row.isSuperseded)
+          .map((row) => ({
+            ...row,
+            practiceDate: new Date(row.practiceTime),
+          }));
         const pastOrCurrentRows = scheduledRows.filter(
           (row) => row.practiceDate <= now,
         );

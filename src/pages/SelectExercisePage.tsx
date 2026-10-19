@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { apiFetch } from "~/lib/api";
@@ -19,6 +19,7 @@ interface TodayRepRow {
   practiceTime: string;
   exerciseName: string;
   performedRepId: number | null;
+  isSuperseded: boolean;
 }
 
 function getPracticeTimeKey(date: Date) {
@@ -51,6 +52,58 @@ export function SelectExercisePage() {
     return isPracticeTimeKey(practiceTimeKey) ? practiceTimeKey : null;
   }, [searchParams]);
 
+  const fetchPageData = useCallback(async (showLoading: boolean) => {
+    if (isLoading || !user) return;
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
+        apiFetch(
+          `/api/prescribed-exercises?timeZone=${encodeURIComponent(timeZone)}${
+            requestedPracticeTimeKey
+              ? `&practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`
+              : ""
+          }`,
+        ),
+        apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
+      ]);
+
+      if (!prescribedExercisesResponse.ok) {
+        throw new Error("Failed to fetch prescribed exercises");
+      }
+
+      if (!todayRepsResponse.ok) {
+        throw new Error("Failed to fetch today's reps");
+      }
+
+      const prescribedExercisesData = (await prescribedExercisesResponse.json()) as PrescribedExercise[];
+      const todayRepsResult = todayRepsResponseSchema.safeParse(await todayRepsResponse.json());
+
+      if (!todayRepsResult.success) {
+        throw new Error(
+          getZodErrorMessage(todayRepsResult.error, "Invalid today's reps response"),
+        );
+      }
+
+      setPrescribedExercises(prescribedExercisesData);
+      setTodayReps(todayRepsResult.data);
+    } catch (err) {
+      if (showLoading) {
+        setPrescribedExercises([]);
+        setTodayReps([]);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }, [isLoading, requestedPracticeTimeKey, user]);
+
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
@@ -60,53 +113,22 @@ export function SelectExercisePage() {
       return;
     }
 
-    async function fetchPageData() {
-      try {
-        setLoading(true);
-        setError(null);
-        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-        const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
-          apiFetch(
-            `/api/prescribed-exercises?timeZone=${encodeURIComponent(timeZone)}${
-              requestedPracticeTimeKey
-                ? `&practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`
-                : ""
-            }`,
-          ),
-          apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
-        ]);
-
-        if (!prescribedExercisesResponse.ok) {
-          throw new Error("Failed to fetch prescribed exercises");
-        }
-
-        if (!todayRepsResponse.ok) {
-          throw new Error("Failed to fetch today's reps");
-        }
-
-        const prescribedExercisesData = (await prescribedExercisesResponse.json()) as PrescribedExercise[];
-        const todayRepsResult = todayRepsResponseSchema.safeParse(await todayRepsResponse.json());
-
-        if (!todayRepsResult.success) {
-          throw new Error(
-            getZodErrorMessage(todayRepsResult.error, "Invalid today's reps response"),
-          );
-        }
-
-        setPrescribedExercises(prescribedExercisesData);
-        setTodayReps(todayRepsResult.data);
-      } catch (err) {
-        setPrescribedExercises([]);
-        setTodayReps([]);
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
+    void fetchPageData(true);
+    const intervalId = window.setInterval(() => {
+      void fetchPageData(false);
+    }, 5_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchPageData(false);
       }
-    }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    void fetchPageData();
-  }, [isLoading, requestedPracticeTimeKey, user]);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchPageData, isLoading, user]);
 
   const selectedPrescribedExercise = useMemo(
     () => prescribedExercises.find((prescribedExercise) => prescribedExercise.id === selectedPrescribedExerciseId) ?? null,
@@ -115,10 +137,12 @@ export function SelectExercisePage() {
 
   const currentSessionPracticeTimeKey = useMemo(() => {
     const now = new Date();
-    const scheduledRows = todayReps.map((row) => ({
-      ...row,
-      practiceDate: new Date(row.practiceTime),
-    }));
+    const scheduledRows = todayReps
+      .filter((row) => !row.isSuperseded)
+      .map((row) => ({
+        ...row,
+        practiceDate: new Date(row.practiceTime),
+      }));
     const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceDate <= now);
     const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
     const latestDuePracticeTimeKey = latestScheduledRow
@@ -177,7 +201,7 @@ export function SelectExercisePage() {
   }, [selectedSessionPracticeTimeKey, todayReps]);
 
   const hasPendingTodayReps = useMemo(
-    () => todayReps.some((row) => row.performedRepId === null),
+    () => todayReps.some((row) => !row.isSuperseded && row.performedRepId === null),
     [todayReps],
   );
 
@@ -220,7 +244,9 @@ export function SelectExercisePage() {
 
       {!loading && !error && prescribedExercises.length === 0 && (
         <p className="mt-8 text-center text-gray-600">
-          לא נמצאו תרגילים בתוכנית עבור המשתמש הנוכחי.
+          {requestedPracticeTimeKey === null
+            ? "לא נותרו תרגולים להיום"
+            : "לא נמצאו תרגילים בתוכנית עבור התרגול שנבחר."}
         </p>
       )}
 

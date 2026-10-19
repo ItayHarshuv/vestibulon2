@@ -153,6 +153,10 @@ export function WorkoutRestPage() {
           prescribedExercisesResult.data.find((prescribedExercise) => prescribedExercise.id === parsedPrescribedExerciseId) ?? null;
 
         if (!currentPrescribedExercise) {
+          if (requestedPracticeTimeKey === null) {
+            void navigate("/select-exercise", { replace: true });
+            return;
+          }
           throw new Error("Prescribed exercise not found");
         }
 
@@ -282,6 +286,7 @@ export function WorkoutRestPage() {
       }
     })();
   }, [
+    navigate,
     parsedPerformedRepId,
     parsedPrescribedExerciseId,
     requestedPracticeTimeKey,

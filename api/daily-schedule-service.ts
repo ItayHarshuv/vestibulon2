@@ -29,6 +29,7 @@ export type DailyScheduleRow = {
   treatmentPlanExerciseId: number;
   sessionIndex: number;
   repIndex: number;
+  isSuperseded: boolean;
 };
 
 function resolvePlanForSession(
@@ -72,6 +73,14 @@ export async function getDailyScheduleForUser(
 
   if (plans.length === 0) return [];
 
+  const latestPlanVersion = plans.reduce((latest, plan) => {
+    const createdAtDifference =
+      plan.createdAt.getTime() - latest.createdAt.getTime();
+    if (createdAtDifference !== 0) {
+      return createdAtDifference > 0 ? plan : latest;
+    }
+    return plan.id > latest.id ? plan : latest;
+  });
   const maxSessions = Math.max(...plans.map((plan) => plan.sessionsPerDay), 1);
   const timeRows = await ensureSessionTimesForUser(userId, maxSessions, timeZone);
   const timeByIndex = new Map(
@@ -155,6 +164,10 @@ export async function getDailyScheduleForUser(
           treatmentPlanExerciseId: exercise.id,
           sessionIndex,
           repIndex,
+          isSuperseded:
+            latestPlanVersion.effectiveDate > dateKey ||
+            (latestPlanVersion.effectiveDate === dateKey &&
+              sessionIndex < latestPlanVersion.effectiveSessionIndex),
         });
         syntheticId += 1;
       }
@@ -179,9 +192,10 @@ export function selectCurrentSessionIndex(
     );
   }
 
+  const currentRows = rows.filter((row) => !row.isSuperseded);
   const now = new Date();
   const sessionRows = new Map<number, DailyScheduleRow[]>();
-  for (const row of rows) {
+  for (const row of currentRows) {
     const group = sessionRows.get(row.sessionIndex) ?? [];
     group.push(row);
     sessionRows.set(row.sessionIndex, group);

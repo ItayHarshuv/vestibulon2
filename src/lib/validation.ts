@@ -490,6 +490,7 @@ export const todayRepRowSchema = z.object({
   treatmentPlanExerciseId: z.number().int().optional(),
   sessionIndex: z.number().int().optional(),
   repIndex: z.number().int().optional(),
+  isSuperseded: z.boolean().default(false),
 });
 
 export const todayRepsResponseSchema = z.array(todayRepRowSchema);

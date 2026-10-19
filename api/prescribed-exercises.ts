@@ -10,7 +10,6 @@ import { db } from "./db/index.js";
 import {
   performedReps,
   treatmentPlanExercises,
-  treatmentPlans,
   users,
 } from "./db/schema.js";
 import {
@@ -82,28 +81,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       requestedTimeZone,
       practiceTimeKey,
     );
-    let exerciseIds = [
+    const exerciseIds = [
       ...new Set(
         schedule
           .filter((row) => row.sessionIndex === sessionIndex)
           .map((row) => row.treatmentPlanExerciseId),
       ),
     ];
-    if (exerciseIds.length === 0) {
-      const latestPlans = await db
-        .select({ id: treatmentPlans.id })
-        .from(treatmentPlans)
-        .where(eq(treatmentPlans.patientUserId, targetUserId))
-        .orderBy(asc(treatmentPlans.createdAt), asc(treatmentPlans.id));
-      const latestPlanId = latestPlans.at(-1)?.id;
-      if (latestPlanId) {
-        const rows = await db
-          .select({ id: treatmentPlanExercises.id })
-          .from(treatmentPlanExercises)
-          .where(eq(treatmentPlanExercises.treatmentPlanId, latestPlanId));
-        exerciseIds = rows.map((row) => row.id);
-      }
-    }
     if (exerciseIds.length === 0) {
       res.status(200).json([]);
       return;

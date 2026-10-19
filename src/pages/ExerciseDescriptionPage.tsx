@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import {
@@ -32,6 +32,59 @@ export function ExerciseDescriptionPage() {
     ? routeParamsResult.data.prescribedExerciseId
     : null;
 
+  const fetchPrescribedExercise = useCallback(async (showLoading: boolean) => {
+    if (isLoading || !user || parsedPrescribedExerciseId === null) return;
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+
+      const params = new URLSearchParams({
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      if (practiceTimeKey) params.set("practiceTimeKey", practiceTimeKey);
+      const response = await apiFetch(
+        `/api/prescribed-exercises?${params.toString()}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch prescribed exercises");
+      }
+
+      const dataResult = prescribedExercisesResponseSchema.safeParse(
+        await response.json(),
+      );
+      if (!dataResult.success) {
+        throw new Error(
+          getZodErrorMessage(dataResult.error, "Invalid prescribed exercises response"),
+        );
+      }
+
+      const selectedPrescribedExercise =
+        dataResult.data.find((item) => item.id === parsedPrescribedExerciseId) ?? null;
+      if (!selectedPrescribedExercise && practiceTimeKey === null) {
+        void navigate("/select-exercise", { replace: true });
+        return;
+      }
+      setPrescribedExercise(selectedPrescribedExercise);
+    } catch (err) {
+      if (showLoading) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }, [
+    isLoading,
+    navigate,
+    parsedPrescribedExerciseId,
+    practiceTimeKey,
+    user,
+  ]);
+
   useEffect(() => {
     if (isLoading) return;
     if (!user || parsedPrescribedExerciseId === null) {
@@ -40,44 +93,27 @@ export function ExerciseDescriptionPage() {
       return;
     }
 
-    async function fetchPrescribedExercise() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const params = new URLSearchParams({
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        });
-        if (practiceTimeKey) params.set("practiceTimeKey", practiceTimeKey);
-        const response = await apiFetch(
-          `/api/prescribed-exercises?${params.toString()}`,
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch prescribed exercises");
-        }
-
-        const dataResult = prescribedExercisesResponseSchema.safeParse(
-          await response.json(),
-        );
-        if (!dataResult.success) {
-          throw new Error(
-            getZodErrorMessage(dataResult.error, "Invalid prescribed exercises response"),
-          );
-        }
-
-        const selectedPrescribedExercise =
-          dataResult.data.find((item) => item.id === parsedPrescribedExerciseId) ?? null;
-        setPrescribedExercise(selectedPrescribedExercise);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
+    void fetchPrescribedExercise(true);
+    const intervalId = window.setInterval(() => {
+      void fetchPrescribedExercise(false);
+    }, 5_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchPrescribedExercise(false);
       }
-    }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    void fetchPrescribedExercise();
-  }, [isLoading, parsedPrescribedExerciseId, practiceTimeKey, user]);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    fetchPrescribedExercise,
+    isLoading,
+    parsedPrescribedExerciseId,
+    user,
+  ]);
 
   const exerciseTemplate = useMemo(() => {
     if (!prescribedExercise) return null;

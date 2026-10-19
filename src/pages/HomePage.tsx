@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "~/auth/AuthProvider";
 import { HomeActionButton } from "../components/HomeActionButton";
@@ -10,6 +10,7 @@ type TodayRepRow = {
   practiceTime: string;
   exerciseName: string;
   performedRepId: number | null;
+  isSuperseded: boolean;
 };
 
 type SessionSummary = {
@@ -68,45 +69,68 @@ export function HomePage() {
     };
   }, []);
 
-  useEffect(() => {
+  const refreshTodayReps = useCallback(async (showLoading: boolean) => {
     if (isLoading) return;
-
     if (!user) {
       setTodayReps([]);
       setTodayRepsError(null);
       return;
     }
 
-    void (async () => {
-      try {
+    try {
+      if (showLoading) {
         setIsLoadingTodayReps(true);
-        setTodayRepsError(null);
-        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const response = await apiFetch(
-          `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
+      }
+      setTodayRepsError(null);
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const response = await apiFetch(
+        `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch today's reps");
+      }
+
+      const dataResult = todayRepsResponseSchema.safeParse(await response.json());
+      if (!dataResult.success) {
+        throw new Error(
+          getZodErrorMessage(dataResult.error, "Invalid today's reps response"),
         );
+      }
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch today's reps");
-        }
-
-        const dataResult = todayRepsResponseSchema.safeParse(await response.json());
-        if (!dataResult.success) {
-          throw new Error(
-            getZodErrorMessage(dataResult.error, "Invalid today's reps response"),
-          );
-        }
-
-        setTodayReps(dataResult.data);
-      } catch (error) {
-        console.error("Error fetching today's reps:", error);
+      setTodayReps(dataResult.data);
+    } catch (error) {
+      console.error("Error fetching today's reps:", error);
+      if (showLoading) {
         setTodayReps([]);
         setTodayRepsError("לא ניתן לטעון את תרגולי היום");
-      } finally {
+      }
+    } finally {
+      if (showLoading) {
         setIsLoadingTodayReps(false);
       }
-    })();
+    }
   }, [isLoading, user]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    void refreshTodayReps(true);
+    const intervalId = window.setInterval(() => {
+      void refreshTodayReps(false);
+    }, 5_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshTodayReps(false);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isLoading, refreshTodayReps, user]);
 
   const practiceStatus = useMemo(() => {
     if (isLoadingTodayReps) {
@@ -124,10 +148,12 @@ export function HomePage() {
     }
 
     const now = new Date(nowMs);
-    const scheduledRows = todayReps.map((row) => ({
-      ...row,
-      practiceDate: new Date(row.practiceTime),
-    }));
+    const scheduledRows = todayReps
+      .filter((row) => !row.isSuperseded)
+      .map((row) => ({
+        ...row,
+        practiceDate: new Date(row.practiceTime),
+      }));
     const pastOrCurrentRows = scheduledRows.filter((row) => row.practiceDate <= now);
     const latestScheduledRow = pastOrCurrentRows[pastOrCurrentRows.length - 1];
     const latestDuePracticeTimeKey = latestScheduledRow
