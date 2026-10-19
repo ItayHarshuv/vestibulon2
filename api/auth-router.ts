@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import passwordResetHandler from "../../server/routes/auth/password-reset.js";
-import sessionHandler from "../../server/routes/auth/session.js";
-import signInHandler from "../../server/routes/auth/sign-in.js";
-import signOutHandler from "../../server/routes/auth/sign-out.js";
-import signUpHandler from "../../server/routes/auth/sign-up.js";
+import passwordResetHandler from "../server/routes/auth/password-reset.js";
+import sessionHandler from "../server/routes/auth/session.js";
+import signInHandler from "../server/routes/auth/sign-in.js";
+import signOutHandler from "../server/routes/auth/sign-out.js";
+import signUpHandler from "../server/routes/auth/sign-up.js";
 
 type ApiHandler = (req: VercelRequest, res: VercelResponse) => unknown;
 

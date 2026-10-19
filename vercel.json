@@ -1,5 +1,6 @@
 {
   "routes": [
+    { "src": "/api/auth/(.*)", "dest": "/api/auth-router?action=$1" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
