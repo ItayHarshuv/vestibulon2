@@ -28,6 +28,45 @@ function getPageTitle(pathname: string) {
   return "";
 }
 
+function getBackDestination(
+  pathname: string,
+  search: string,
+  navigationState: unknown,
+  isClinician: boolean,
+) {
+  if (matchPath("/regular-menu", pathname)) return "/";
+  if (matchPath("/credits", pathname)) return "/regular-menu";
+  if (matchPath("/clinician-menu", pathname)) return "/";
+  if (matchPath("/clinician-menu/new-patient", pathname)) return "/clinician-menu";
+  if (matchPath("/clinician-menu/treatment-plan", pathname)) {
+    return "/clinician-menu";
+  }
+  if (matchPath("/clinician-menu/messages", pathname)) return "/clinician-menu";
+  if (matchPath("/schedule", pathname)) return "/";
+  if (matchPath("/exercise-statistics", pathname)) {
+    if (
+      typeof navigationState === "object" &&
+      navigationState !== null &&
+      "backDestination" in navigationState &&
+      (navigationState.backDestination === "/" ||
+        navigationState.backDestination === "/clinician-menu")
+    ) {
+      return navigationState.backDestination;
+    }
+
+    return isClinician ? "/clinician-menu" : "/";
+  }
+  if (matchPath("/select-exercise", pathname)) return "/";
+  if (matchPath("/select-previous-session", pathname)) return "/";
+  if (matchPath("/exercise-description/:prescribedExerciseId", pathname)) {
+    return `/select-exercise${search}`;
+  }
+  if (matchPath("/sign-in", pathname)) return "/";
+  if (matchPath("/sign-up", pathname)) return "/sign-in";
+
+  return "/";
+}
+
 export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -162,12 +201,14 @@ export function Navbar() {
                         type="button"
                         aria-label="Go back"
                         onClick={() => {
-                          if (window.history.length > 1) {
-                            void navigate(-1);
-                            return;
-                          }
-
-                          void navigate("/");
+                          void navigate(
+                            getBackDestination(
+                              location.pathname,
+                              location.search,
+                              location.state as unknown,
+                              user?.role === "clinician",
+                            ),
+                          );
                         }}
                         className="rounded-md p-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
                       >

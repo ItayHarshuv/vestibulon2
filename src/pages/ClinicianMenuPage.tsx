@@ -42,6 +42,7 @@ export function ClinicianMenuPage() {
           to="/exercise-statistics"
           label="צפייה בנתוני תרגול של מטופל/ת"
           iconSrc="/assets/icons/bars-chart.svg"
+          backDestination="/clinician-menu"
         />
         <HomeActionButton
           to="/clinician-menu/messages"

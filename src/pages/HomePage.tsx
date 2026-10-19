@@ -304,6 +304,7 @@ export function HomePage() {
           to="/exercise-statistics"
           label="צפייה בנתוני התרגול"
           iconSrc="/assets/icons/bars-chart.svg"
+          backDestination="/"
         />
         <HomeActionButton
           to="/"

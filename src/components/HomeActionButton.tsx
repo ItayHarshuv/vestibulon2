@@ -5,6 +5,7 @@ type HomeActionButtonProps = {
   label: string;
   iconSrc?: string;
   iconScale?: number;
+  backDestination?: "/" | "/clinician-menu";
 };
 
 export function HomeActionButton({
@@ -12,13 +13,18 @@ export function HomeActionButton({
   label,
   iconSrc,
   iconScale = 1,
+  backDestination,
 }: HomeActionButtonProps) {
   const navigate = useNavigate();
 
   return (
     <button
       type="button"
-      onClick={() => navigate(to)}
+      onClick={() =>
+        navigate(to, {
+          state: backDestination ? { backDestination } : undefined,
+        })
+      }
       className={`group relative flex items-center justify-center rounded-lg border-2 border-blue-500 text-center transition-colors hover:bg-blue-50 active:bg-blue-500 ${
         iconSrc ? "px-24 py-5" : "px-6 py-5"
       }`}
