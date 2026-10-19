@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getAccessibleUserProfile,
@@ -7,79 +7,32 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { prescribedExercises } from "./db/schema.js";
+import {
+  performedReps,
+  treatmentPlanExercises,
+  treatmentPlans,
+  users,
+} from "./db/schema.js";
+import {
+  getDailyScheduleForUser,
+  selectCurrentSessionIndex,
+} from "./daily-schedule-service.js";
 import {
   getZodErrorMessage,
   prescribedExercisesQuerySchema,
-  updatePrescribedExerciseBodySchema,
 } from "../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleOptions(req, res, "GET,PATCH,OPTIONS")) {
+  if (handleOptions(req, res, "GET,OPTIONS")) {
     return;
   }
 
-  setApiHeaders(req, res, "GET,PATCH,OPTIONS");
+  setApiHeaders(req, res, "GET,OPTIONS");
 
   try {
     const authenticatedUser = await getAuthenticatedUser(req, res);
     if (!authenticatedUser) {
       res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    if (req.method === "PATCH") {
-      const bodyResult = updatePrescribedExerciseBodySchema.safeParse(req.body);
-      if (!bodyResult.success) {
-        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
-        return;
-      }
-
-      const { prescribedExerciseId, metronomeBpmTemp } = bodyResult.data;
-      const prescribedExerciseRows = await db
-        .select({
-          id: prescribedExercises.id,
-          userId: prescribedExercises.userId,
-        })
-        .from(prescribedExercises)
-        .where(eq(prescribedExercises.id, prescribedExerciseId))
-        .limit(1);
-      const prescribedExercise = prescribedExerciseRows[0];
-      if (!prescribedExercise) {
-        res.status(404).json({ error: "Prescribed exercise not found" });
-        return;
-      }
-
-      const accessibleProfile = await getAccessibleUserProfile(
-        authenticatedUser,
-        prescribedExercise.userId,
-      );
-      if (!accessibleProfile) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-
-      const updated = await db
-        .update(prescribedExercises)
-        .set({ metronomeBpmTemp })
-        .where(
-          and(
-            eq(prescribedExercises.id, prescribedExerciseId),
-            eq(prescribedExercises.userId, prescribedExercise.userId),
-          ),
-        )
-        .returning();
-
-      const updatedRow = updated[0];
-      if (!updatedRow) {
-        res.status(404).json({ error: "Prescribed exercise not found" });
-        return;
-      }
-
-      res.status(200).json({
-        id: updatedRow.id,
-        metronomeBpmTemp: updatedRow.metronomeBpmTemp,
-      });
       return;
     }
 
@@ -107,25 +60,99 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const userPrescribedExercises = await db
-      .select({
-        id: prescribedExercises.id,
-        exerciseName: prescribedExercises.exerciseName,
-        numberOfSeconds: prescribedExercises.numberOfSeconds,
-        numberOfRepetions: prescribedExercises.numberOfRepetions,
-        metronomeBpm: prescribedExercises.metronomeBpm,
-        metronomeBpmTemp: prescribedExercises.metronomeBpmTemp,
-        position: prescribedExercises.position,
-        background: prescribedExercises.background,
-        recomendedVAS: prescribedExercises.recomendedVAS,
-      })
-      .from(prescribedExercises)
-      .where(
-        and(eq(prescribedExercises.userId, targetUserId), eq(prescribedExercises.active, true)),
-      )
-      .orderBy(prescribedExercises.createdAt);
+    const profileRows = await db
+      .select({ timeZone: users.timeZone })
+      .from(users)
+      .where(eq(users.workosUserId, targetUserId))
+      .limit(1);
+    const requestedTimeZone =
+      typeof req.query.timeZone === "string"
+        ? req.query.timeZone
+        : profileRows[0]?.timeZone ?? "UTC";
+    const practiceTimeKey =
+      typeof req.query.practiceTimeKey === "string"
+        ? req.query.practiceTimeKey
+        : undefined;
+    const schedule = await getDailyScheduleForUser(
+      targetUserId,
+      requestedTimeZone,
+    );
+    const sessionIndex = selectCurrentSessionIndex(
+      schedule,
+      requestedTimeZone,
+      practiceTimeKey,
+    );
+    let exerciseIds = [
+      ...new Set(
+        schedule
+          .filter((row) => row.sessionIndex === sessionIndex)
+          .map((row) => row.treatmentPlanExerciseId),
+      ),
+    ];
+    if (exerciseIds.length === 0) {
+      const latestPlans = await db
+        .select({ id: treatmentPlans.id })
+        .from(treatmentPlans)
+        .where(eq(treatmentPlans.patientUserId, targetUserId))
+        .orderBy(asc(treatmentPlans.createdAt), asc(treatmentPlans.id));
+      const latestPlanId = latestPlans.at(-1)?.id;
+      if (latestPlanId) {
+        const rows = await db
+          .select({ id: treatmentPlanExercises.id })
+          .from(treatmentPlanExercises)
+          .where(eq(treatmentPlanExercises.treatmentPlanId, latestPlanId));
+        exerciseIds = rows.map((row) => row.id);
+      }
+    }
+    if (exerciseIds.length === 0) {
+      res.status(200).json([]);
+      return;
+    }
 
-    res.status(200).json(userPrescribedExercises);
+    const [exerciseRows, bpmRows] = await Promise.all([
+      db
+        .select()
+        .from(treatmentPlanExercises)
+        .where(inArray(treatmentPlanExercises.id, exerciseIds))
+        .orderBy(asc(treatmentPlanExercises.id)),
+      db
+        .select({
+          exerciseCode: treatmentPlanExercises.exerciseCode,
+          bpm: performedReps.bpmEndOfRep,
+          startTime: performedReps.startTime,
+        })
+        .from(performedReps)
+        .innerJoin(
+          treatmentPlanExercises,
+          eq(performedReps.treatmentPlanExerciseId, treatmentPlanExercises.id),
+        )
+        .where(
+          and(
+            eq(performedReps.patientUserId, targetUserId),
+            isNotNull(performedReps.bpmEndOfRep),
+          ),
+        )
+        .orderBy(asc(performedReps.startTime), asc(performedReps.id)),
+    ]);
+    const latestBpmByCode = new Map<string, number>();
+    for (const row of bpmRows) {
+      if (row.bpm !== null) latestBpmByCode.set(row.exerciseCode, row.bpm);
+    }
+    res.status(200).json(
+      exerciseRows.map((exercise) => ({
+        id: exercise.id,
+        treatmentPlanExerciseId: exercise.id,
+        exerciseName: exercise.exerciseCode,
+        numberOfSeconds: exercise.secondsPerRep,
+        numberOfRepetions: exercise.repsPerSession,
+        metronomeBpm: exercise.targetBpm,
+        metronomeBpmTemp:
+          latestBpmByCode.get(exercise.exerciseCode) ?? null,
+        position: exercise.position,
+        background: exercise.background,
+        recomendedVAS: exercise.recommendedVAS,
+      })),
+    );
   } catch (error) {
     console.error("Error fetching prescribed exercises:", error);
     res.status(500).json({ error: "Failed to fetch prescribed exercises" });

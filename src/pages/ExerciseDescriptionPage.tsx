@@ -45,7 +45,13 @@ export function ExerciseDescriptionPage() {
         setLoading(true);
         setError(null);
 
-        const response = await apiFetch("/api/prescribed-exercises");
+        const params = new URLSearchParams({
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        if (practiceTimeKey) params.set("practiceTimeKey", practiceTimeKey);
+        const response = await apiFetch(
+          `/api/prescribed-exercises?${params.toString()}`,
+        );
 
         if (!response.ok) {
           throw new Error("Failed to fetch prescribed exercises");
@@ -71,7 +77,7 @@ export function ExerciseDescriptionPage() {
     }
 
     void fetchPrescribedExercise();
-  }, [isLoading, parsedPrescribedExerciseId, user]);
+  }, [isLoading, parsedPrescribedExerciseId, practiceTimeKey, user]);
 
   const exerciseTemplate = useMemo(() => {
     if (!prescribedExercise) return null;

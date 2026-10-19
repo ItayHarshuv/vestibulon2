@@ -67,7 +67,13 @@ export function SelectExercisePage() {
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
         const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
-          apiFetch("/api/prescribed-exercises"),
+          apiFetch(
+            `/api/prescribed-exercises?timeZone=${encodeURIComponent(timeZone)}${
+              requestedPracticeTimeKey
+                ? `&practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`
+                : ""
+            }`,
+          ),
           apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
         ]);
 
@@ -100,7 +106,7 @@ export function SelectExercisePage() {
     }
 
     void fetchPageData();
-  }, [isLoading, user]);
+  }, [isLoading, requestedPracticeTimeKey, user]);
 
   const selectedPrescribedExercise = useMemo(
     () => prescribedExercises.find((prescribedExercise) => prescribedExercise.id === selectedPrescribedExerciseId) ?? null,

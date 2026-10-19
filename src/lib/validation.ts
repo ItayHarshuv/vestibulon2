@@ -120,21 +120,11 @@ export const passwordResetRequestSchema = z.preprocess(
 
 export const updateProfileSchema = z.preprocess(
   coerceObject,
-  z
-    .object({
-      userId: optionalUserIdField("userId must be a string"),
-      gender: genderSchema.optional(),
-      numberOfSessions: integerField(
-        "numberOfSessions must be an integer greater than 0",
-      )
-        .min(1, "numberOfSessions must be an integer greater than 0")
-        .optional(),
-    })
-    .superRefine((value, context) => {
-      if (
-        value.gender === undefined &&
-        value.numberOfSessions === undefined
-      ) {
+  z.object({
+    userId: optionalUserIdField("userId must be a string"),
+    gender: genderSchema.optional(),
+  }).superRefine((value, context) => {
+      if (value.gender === undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: "At least one updatable field is required",
@@ -220,6 +210,7 @@ export const updatePrescribedExerciseBodySchema = z.preprocess(
 
 export const apiPrescribedExerciseSchema = z.object({
   id: z.number().int(),
+  treatmentPlanExerciseId: z.number().int(),
   exerciseName: z.string(),
   numberOfSeconds: z.number().int(),
   numberOfRepetions: z.number().int(),
@@ -325,11 +316,34 @@ const practiceTimeKeySchema = z
 
 export const createPerformedRepBodySchema = z.preprocess(
   coerceObject,
-  z.object({
-    prescribedExerciseId: integerField("prescribedExerciseId is required"),
-    timeZone: requiredTrimmedString("timeZone is required"),
-    practiceTimeKey: practiceTimeKeySchema.optional(),
-  }),
+  z
+    .object({
+      treatmentPlanExerciseId: integerField(
+        "treatmentPlanExerciseId is required",
+      ).optional(),
+      prescribedExerciseId: integerField(
+        "prescribedExerciseId must be an integer",
+      ).optional(),
+      clientRequestId: z.string().uuid().optional(),
+      timeZone: requiredTrimmedString("timeZone is required"),
+      practiceTimeKey: practiceTimeKeySchema.optional(),
+    })
+    .superRefine((value, context) => {
+      if (
+        value.treatmentPlanExerciseId === undefined &&
+        value.prescribedExerciseId === undefined
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "treatmentPlanExerciseId is required",
+        });
+      }
+    })
+    .transform(({ prescribedExerciseId, treatmentPlanExerciseId, ...value }) => ({
+      ...value,
+      treatmentPlanExerciseId:
+        treatmentPlanExerciseId ?? prescribedExerciseId!,
+    })),
 );
 
 export const getPerformedRepsQuerySchema = z.preprocess(
@@ -391,6 +405,14 @@ export const updateTodayRepsScheduleBodySchema = z.preprocess(
       }),
   }),
 );
+
+export const sessionTimesQuerySchema = todayRepsQuerySchema;
+export const updateSessionTimesBodySchema = updateTodayRepsScheduleBodySchema;
+export const sessionTimeRowSchema = z.object({
+  sessionIndex: z.number().int().min(1).max(10),
+  localTime: sessionTimeSchema,
+});
+export const sessionTimesResponseSchema = z.array(sessionTimeRowSchema);
 
 const updatePerformedRepBodyBaseSchema = z
   .object({
@@ -465,6 +487,9 @@ export const todayRepRowSchema = z.object({
   practiceTime: z.string(),
   exerciseName: z.string(),
   performedRepId: z.number().int().nullable(),
+  treatmentPlanExerciseId: z.number().int().optional(),
+  sessionIndex: z.number().int().optional(),
+  repIndex: z.number().int().optional(),
 });
 
 export const todayRepsResponseSchema = z.array(todayRepRowSchema);

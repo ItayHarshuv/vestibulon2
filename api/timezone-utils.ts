@@ -47,6 +47,55 @@ export function parseDateKey(dateKey: string) {
   return { year: year ?? 0, month: month ?? 0, day: day ?? 0 };
 }
 
+export function getPracticeTimeKeyInTimeZone(date: Date, timeZone: string) {
+  const { year, month, day, hour, minute } = getTimeZoneParts(date, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}-${String(hour).padStart(2, "0")}-${String(minute).padStart(2, "0")}`;
+}
+
+export function createDateInTimeZone(
+  dateKey: string,
+  localTime: string,
+  timeZone: string,
+) {
+  const { year, month, day } = parseDateKey(dateKey);
+  const [hour = 0, minute = 0] = localTime.split(":").map(Number);
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const observed = getTimeZoneParts(new Date(utcGuess), timeZone);
+  const offsetMs =
+    Date.UTC(
+      observed.year,
+      observed.month - 1,
+      observed.day,
+      observed.hour,
+      observed.minute,
+      observed.second,
+    ) - utcGuess;
+
+  return new Date(utcGuess - offsetMs);
+}
+
+export function getNextDateKey(dateKey: string) {
+  const { year, month, day } = parseDateKey(dateKey);
+  const date = new Date(Date.UTC(year, month - 1, day + 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function buildDefaultSessionTimes(totalSessions: number) {
+  if (totalSessions <= 0) return [];
+  if (totalSessions === 1) return ["08:00"];
+
+  return Array.from({ length: totalSessions }, (_, index) => {
+    const minutes =
+      index === 0
+        ? 8 * 60
+        : index === totalSessions - 1
+          ? 20 * 60
+          : Math.round((8 * 60 + (12 * 60 * index) / (totalSessions - 1)) / 15) *
+            15;
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  });
+}
+
 export function compareDateKeys(left: string, right: string) {
   return left.localeCompare(right);
 }

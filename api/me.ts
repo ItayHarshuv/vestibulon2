@@ -9,8 +9,7 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { prescribedExercises, users } from "./db/schema.js";
-import { recordUserSessionHistorySnapshot } from "./prescription-history-service.js";
+import { users } from "./db/schema.js";
 import {
   getZodErrorMessage,
   profileQuerySchema,
@@ -65,7 +64,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               ? profile.gender
               : null,
           points: profile.points,
-          numberOfSessions: profile.numberOfSessions,
         },
       });
       return;
@@ -103,10 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await getWorkOS().userManagement.deleteUser(targetUserId);
         deletedFromWorkOS = true;
 
-        await db.transaction(async (tx) => {
-          await tx.delete(prescribedExercises).where(eq(prescribedExercises.userId, targetUserId));
-          await tx.delete(users).where(eq(users.workosUserId, targetUserId));
-        });
+        await db.delete(users).where(eq(users.workosUserId, targetUserId));
       } catch (error) {
         console.error("Error deleting user:", error);
 
@@ -149,10 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const updates: {
-      gender?: "male" | "female";
-      numberOfSessions?: number;
-    } = {};
+    const updates: { gender?: "male" | "female" } = {};
 
     if (bodyResult.data.gender !== undefined) {
       if (targetUserId !== user.id) {
@@ -161,19 +153,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       updates.gender = bodyResult.data.gender;
-    }
-
-    if (bodyResult.data.numberOfSessions !== undefined) {
-      const canClinicianUpdatePatientSessions =
-        user.role === "clinician" &&
-        profile.role === "patient" &&
-        profile.clinicianUserId === user.id;
-      if (!canClinicianUpdatePatientSessions) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-
-      updates.numberOfSessions = bodyResult.data.numberOfSessions;
     }
 
     const updated = await db
@@ -188,13 +167,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    if (updates.numberOfSessions !== undefined) {
-      await recordUserSessionHistorySnapshot(
-        targetUserId,
-        updatedProfile.numberOfSessions,
-      );
-    }
-
     res.status(200).json({
       user: {
         id: updatedProfile.workosUserId,
@@ -207,7 +179,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ? updatedProfile.gender
             : null,
         points: updatedProfile.points,
-        numberOfSessions: updatedProfile.numberOfSessions,
       },
     });
   } catch (error) {

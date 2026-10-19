@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getAccessibleUserProfile,
@@ -7,54 +7,194 @@ import {
   setApiHeaders,
 } from "./auth.js";
 import { db } from "./db/index.js";
-import { performedReps, prescribedExercises, todayReps, users } from "./db/schema.js";
 import {
-  assignPerformedRepToTodayRepSlot,
-  ensureTodayRepsForUser,
-} from "./today-reps-service.js";
+  performedReps,
+  treatmentPlanExercises,
+  treatmentPlans,
+  users,
+} from "./db/schema.js";
+import {
+  getDailyScheduleForUser,
+  selectCurrentSessionIndex,
+} from "./daily-schedule-service.js";
+import { getDateKeyInTimeZone } from "./timezone-utils.js";
 import {
   createPerformedRepBodySchema,
   getPerformedRepsQuerySchema,
   getZodErrorMessage,
+  type UpdatePerformedRepBody,
   updatePerformedRepBodySchema,
 } from "../src/lib/validation.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleOptions(req, res, "GET,POST,PATCH,OPTIONS")) {
-    return;
-  }
+async function updatePerformedRepAndPoints(
+  userId: string,
+  body: UpdatePerformedRepBody,
+) {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+    const currentRows = await tx
+      .select({
+        startTime: performedReps.startTime,
+        endTime: performedReps.endTime,
+        scheduledDate: performedReps.scheduledDate,
+        sessionIndex: performedReps.sessionIndex,
+        treatmentPlanExerciseId: performedReps.treatmentPlanExerciseId,
+        treatmentPlanId: treatmentPlanExercises.treatmentPlanId,
+        expectedExerciseReps: treatmentPlanExercises.repsPerSession,
+      })
+      .from(performedReps)
+      .leftJoin(
+        treatmentPlanExercises,
+        eq(performedReps.treatmentPlanExerciseId, treatmentPlanExercises.id),
+      )
+      .where(
+        and(
+          eq(performedReps.id, body.performedRepId),
+          eq(performedReps.patientUserId, userId),
+        ),
+      )
+      .limit(1);
+    const current = currentRows[0];
+    if (!current) return null;
 
+    const values: {
+      endTime?: Date;
+      bpmEndOfRep?: number;
+      flagPaused?: boolean;
+      dizziness?: number;
+      nausea?: number;
+      generalDifficulty?: number;
+    } = {};
+    const newlyCompleted =
+      body.numberOfSeconds !== undefined && current.endTime === null;
+    if (newlyCompleted) {
+      values.endTime = new Date(
+        current.startTime.getTime() + body.numberOfSeconds! * 1000,
+      );
+    }
+    if (body.bpmEndOfRep !== undefined) values.bpmEndOfRep = body.bpmEndOfRep;
+    if (body.flagPaused !== undefined) values.flagPaused = body.flagPaused;
+    if (body.dizziness !== undefined) values.dizziness = body.dizziness;
+    if (body.nausea !== undefined) values.nausea = body.nausea;
+    if (body.generalDifficulty !== undefined) {
+      values.generalDifficulty = body.generalDifficulty;
+    }
+
+    const updatedRows = await tx
+      .update(performedReps)
+      .set(values)
+      .where(eq(performedReps.id, body.performedRepId))
+      .returning();
+    let pointsAwarded = 0;
+    let totalPoints: number | null = null;
+
+    if (newlyCompleted) {
+      pointsAwarded = 10;
+      if (
+        current.scheduledDate &&
+        current.sessionIndex !== null &&
+        current.treatmentPlanExerciseId !== null &&
+        current.treatmentPlanId !== null
+      ) {
+        const [exerciseCompleted, sessionCompleted, sessionExpected] =
+          await Promise.all([
+            tx
+              .select({ count: sql<number>`count(*)` })
+              .from(performedReps)
+              .where(
+                and(
+                  eq(performedReps.patientUserId, userId),
+                  eq(performedReps.scheduledDate, current.scheduledDate),
+                  eq(performedReps.sessionIndex, current.sessionIndex),
+                  eq(
+                    performedReps.treatmentPlanExerciseId,
+                    current.treatmentPlanExerciseId,
+                  ),
+                  isNotNull(performedReps.endTime),
+                ),
+              ),
+            tx
+              .select({ count: sql<number>`count(*)` })
+              .from(performedReps)
+              .where(
+                and(
+                  eq(performedReps.patientUserId, userId),
+                  eq(performedReps.scheduledDate, current.scheduledDate),
+                  eq(performedReps.sessionIndex, current.sessionIndex),
+                  isNotNull(performedReps.endTime),
+                ),
+              ),
+            tx
+              .select({
+                count: sql<number>`coalesce(sum(${treatmentPlanExercises.repsPerSession}), 0)`,
+              })
+              .from(treatmentPlanExercises)
+              .where(
+                eq(
+                  treatmentPlanExercises.treatmentPlanId,
+                  current.treatmentPlanId,
+                ),
+              ),
+          ]);
+        if (
+          Number(exerciseCompleted[0]?.count ?? 0) >=
+          (current.expectedExerciseReps ?? Number.POSITIVE_INFINITY)
+        ) {
+          pointsAwarded += 100;
+        }
+        if (
+          Number(sessionCompleted[0]?.count ?? 0) >=
+          Number(sessionExpected[0]?.count ?? Number.POSITIVE_INFINITY)
+        ) {
+          pointsAwarded += 1000;
+        }
+      }
+      const updatedUsers = await tx
+        .update(users)
+        .set({ points: sql`${users.points} + ${pointsAwarded}` })
+        .where(eq(users.workosUserId, userId))
+        .returning();
+      totalPoints = updatedUsers[0]?.points ?? null;
+    }
+
+    return {
+      id: body.performedRepId,
+      ...updatedRows[0],
+      pointsAwarded,
+      totalPoints,
+    };
+  });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (handleOptions(req, res, "GET,POST,PATCH,OPTIONS")) return;
   setApiHeaders(req, res, "GET,POST,PATCH,OPTIONS");
 
   try {
     const authenticatedUser = await getAuthenticatedUser(req, res);
-    const authenticatedUserId = authenticatedUser?.id;
-
-    if (!authenticatedUserId) {
+    if (!authenticatedUser) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
+    const userId = authenticatedUser.id;
 
     if (req.method === "GET") {
-      const queryResult = getPerformedRepsQuerySchema.safeParse(req.query);
-      if (!queryResult.success) {
-        res.status(400).json({ error: getZodErrorMessage(queryResult.error) });
+      const parsed = getPerformedRepsQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: getZodErrorMessage(parsed.error) });
         return;
       }
-
-      const targetUserId = queryResult.data.userId ?? authenticatedUserId;
-      const accessibleProfile = await getAccessibleUserProfile(
+      const targetUserId = parsed.data.userId ?? userId;
+      const accessible = await getAccessibleUserProfile(
         authenticatedUser,
         targetUserId,
       );
-      if (!accessibleProfile) {
-        res.status(targetUserId === authenticatedUserId ? 404 : 403).json({
-          error:
-            targetUserId === authenticatedUserId ? "User profile not found" : "Forbidden",
+      if (!accessible) {
+        res.status(targetUserId === userId ? 404 : 403).json({
+          error: targetUserId === userId ? "User profile not found" : "Forbidden",
         });
         return;
       }
-
       const rows = await db
         .select({
           id: performedReps.id,
@@ -64,248 +204,117 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(performedReps)
         .where(
           and(
-            eq(performedReps.userId, targetUserId),
-            inArray(performedReps.id, queryResult.data.ids),
+            eq(performedReps.patientUserId, targetUserId),
+            inArray(performedReps.id, parsed.data.ids),
           ),
         )
         .orderBy(asc(performedReps.startTime), asc(performedReps.id));
-
       res.status(200).json(rows);
       return;
     }
 
     if (req.method === "POST") {
-      const bodyResult = createPerformedRepBodySchema.safeParse(req.body);
-      if (!bodyResult.success) {
-        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
+      const parsed = createPerformedRepBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: getZodErrorMessage(parsed.error) });
         return;
       }
-
-      const { practiceTimeKey, prescribedExerciseId, timeZone } = bodyResult.data;
-      const matchingPrescribedExercises = await db
-        .select({
-          id: prescribedExercises.id,
-          exerciseName: prescribedExercises.exerciseName,
-        })
-        .from(prescribedExercises)
+      const {
+        clientRequestId,
+        practiceTimeKey,
+        timeZone,
+        treatmentPlanExerciseId,
+      } = parsed.data;
+      if (clientRequestId) {
+        const existing = await db
+          .select()
+          .from(performedReps)
+          .where(
+            and(
+              eq(performedReps.patientUserId, userId),
+              eq(performedReps.clientRequestId, clientRequestId),
+            ),
+          )
+          .limit(1);
+        if (existing[0]) {
+          res.status(200).json(existing[0]);
+          return;
+        }
+      }
+      const ownedRows = await db
+        .select({ id: treatmentPlanExercises.id })
+        .from(treatmentPlanExercises)
+        .innerJoin(
+          treatmentPlans,
+          eq(treatmentPlanExercises.treatmentPlanId, treatmentPlans.id),
+        )
         .where(
           and(
-            eq(prescribedExercises.id, prescribedExerciseId),
-            eq(prescribedExercises.userId, authenticatedUserId),
+            eq(treatmentPlanExercises.id, treatmentPlanExerciseId),
+            eq(treatmentPlans.patientUserId, userId),
           ),
         )
         .limit(1);
-
-      const prescribedExercise = matchingPrescribedExercises[0];
-      if (!prescribedExercise) {
-        res.status(404).json({ error: "Prescribed exercise not found" });
+      if (!ownedRows[0]) {
+        res.status(404).json({ error: "Treatment plan exercise not found" });
         return;
       }
 
-      const now = new Date();
-
-      await ensureTodayRepsForUser(authenticatedUserId, timeZone);
-
-      const inserted = await db
-        .insert(performedReps)
-        .values({
-          prescribedExerciseId: prescribedExercise.id,
-          userId: authenticatedUserId,
-          exerciseName: prescribedExercise.exerciseName,
-          startTime: now,
-        })
-        .returning();
-
-      const createdPerformedRep = inserted[0];
-      if (!createdPerformedRep) {
-        res.status(500).json({ error: "Failed to create performed rep" });
-        return;
-      }
-
-      const assigned = await assignPerformedRepToTodayRepSlot(
-        authenticatedUserId,
-        prescribedExercise.exerciseName,
-        createdPerformedRep.id,
+      const schedule = await getDailyScheduleForUser(userId, timeZone);
+      const sessionIndex = selectCurrentSessionIndex(
+        schedule,
         timeZone,
         practiceTimeKey,
       );
-
-      if (!assigned) {
-        await db
-          .delete(performedReps)
-          .where(eq(performedReps.id, createdPerformedRep.id));
+      const slot = schedule.find(
+        (row) =>
+          row.sessionIndex === sessionIndex &&
+          row.treatmentPlanExerciseId === treatmentPlanExerciseId &&
+          row.performedRepId === null,
+      );
+      if (!slot) {
         res
           .status(409)
           .json({ error: "No available today rep slot for this exercise" });
         return;
       }
-
-      res.status(201).json(createdPerformedRep);
+      const inserted = await db
+        .insert(performedReps)
+        .values({
+          treatmentPlanExerciseId,
+          patientUserId: userId,
+          scheduledDate: getDateKeyInTimeZone(
+            new Date(slot.practiceTime),
+            timeZone,
+          ),
+          sessionIndex: slot.sessionIndex,
+          repIndex: slot.repIndex,
+          scheduledAt: new Date(slot.practiceTime),
+          clientRequestId: clientRequestId ?? null,
+          startTime: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (!inserted[0]) {
+        res.status(409).json({ error: "Rep slot was already claimed" });
+        return;
+      }
+      res.status(201).json(inserted[0]);
       return;
     }
 
     if (req.method === "PATCH") {
-      const bodyResult = updatePerformedRepBodySchema.safeParse(req.body);
-      if (!bodyResult.success) {
-        res.status(400).json({ error: getZodErrorMessage(bodyResult.error) });
+      const parsed = updatePerformedRepBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: getZodErrorMessage(parsed.error) });
         return;
       }
-
-      const {
-        bpmEndOfRep,
-        dizziness,
-        flagPaused,
-        generalDifficulty,
-        nausea,
-        numberOfSeconds,
-        performedRepId,
-      } = bodyResult.data;
-
-      const valuesToUpdate: {
-        endTime?: Date;
-        bpmEndOfRep?: number;
-        flagPaused?: boolean;
-        dizziness?: number;
-        nausea?: number;
-        generalDifficulty?: number;
-      } = {};
-      let shouldAwardCompletionPoints = false;
-
-      if (numberOfSeconds !== undefined) {
-        const performedRepRows = await db
-          .select({
-            startTime: performedReps.startTime,
-            endTime: performedReps.endTime,
-          })
-          .from(performedReps)
-          .where(
-            and(
-              eq(performedReps.id, performedRepId),
-              eq(performedReps.userId, authenticatedUserId),
-            ),
-          )
-          .limit(1);
-
-        const performedRepRow = performedRepRows[0];
-        if (!performedRepRow?.startTime) {
-          res.status(404).json({ error: "Performed rep not found" });
-          return;
-        }
-
-        valuesToUpdate.endTime = new Date(
-          performedRepRow.startTime.getTime() + numberOfSeconds * 1000,
-        );
-        shouldAwardCompletionPoints = performedRepRow.endTime === null;
-      }
-
-      if (bpmEndOfRep !== undefined) {
-        valuesToUpdate.bpmEndOfRep = bpmEndOfRep;
-      }
-
-      if (flagPaused !== undefined) {
-        valuesToUpdate.flagPaused = flagPaused;
-      }
-
-      if (dizziness !== undefined) {
-        valuesToUpdate.dizziness = dizziness;
-      }
-
-      if (nausea !== undefined) {
-        valuesToUpdate.nausea = nausea;
-      }
-
-      if (generalDifficulty !== undefined) {
-        valuesToUpdate.generalDifficulty = generalDifficulty;
-      }
-
-      const updated = await db
-        .update(performedReps)
-        .set(valuesToUpdate)
-        .where(
-          and(
-            eq(performedReps.id, performedRepId),
-            eq(performedReps.userId, authenticatedUserId),
-          ),
-        )
-        .returning();
-
-      if (updated.length === 0) {
+      const result = await updatePerformedRepAndPoints(userId, parsed.data);
+      if (!result) {
         res.status(404).json({ error: "Performed rep not found" });
         return;
       }
-
-      let pointsAwarded = 0;
-      let totalPoints: number | null = null;
-
-      if (shouldAwardCompletionPoints) {
-        const currentTodayRepRows = await db
-          .select({
-            practiceTime: todayReps.practiceTime,
-            exerciseName: todayReps.exerciseName,
-          })
-          .from(todayReps)
-          .where(
-            and(
-              eq(todayReps.userId, authenticatedUserId),
-              eq(todayReps.performedRepId, performedRepId),
-            ),
-          )
-          .limit(1);
-
-        const currentTodayRep = currentTodayRepRows[0];
-        if (currentTodayRep) {
-          const sessionRows = await db
-            .select({
-              exerciseName: todayReps.exerciseName,
-              performedRepEndTime: performedReps.endTime,
-            })
-            .from(todayReps)
-            .leftJoin(performedReps, eq(todayReps.performedRepId, performedReps.id))
-            .where(
-              and(
-                eq(todayReps.userId, authenticatedUserId),
-                eq(todayReps.practiceTime, currentTodayRep.practiceTime),
-              ),
-            );
-
-          const currentExerciseRows = sessionRows.filter(
-            (row) => row.exerciseName === currentTodayRep.exerciseName,
-          );
-          const didCompleteExercise =
-            currentExerciseRows.length > 0 &&
-            currentExerciseRows.every((row) => row.performedRepEndTime !== null);
-          const didCompleteSession =
-            sessionRows.length > 0 &&
-            sessionRows.every((row) => row.performedRepEndTime !== null);
-
-          pointsAwarded = 10;
-          if (didCompleteExercise) {
-            pointsAwarded += 100;
-          }
-          if (didCompleteSession) {
-            pointsAwarded += 1000;
-          }
-        } else {
-          pointsAwarded = 10;
-        }
-
-        const updatedProfile = await db
-          .update(users)
-          .set({
-            points: sql`${users.points} + ${pointsAwarded}`,
-          })
-          .where(eq(users.workosUserId, authenticatedUserId))
-          .returning();
-
-        totalPoints = updatedProfile[0]?.points ?? null;
-      }
-
-      res.status(200).json({
-        id: performedRepId,
-        ...valuesToUpdate,
-        pointsAwarded,
-        totalPoints,
-      });
+      res.status(200).json(result);
       return;
     }
 

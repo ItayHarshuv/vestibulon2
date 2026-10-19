@@ -92,6 +92,55 @@
       "when": 1782924335922,
       "tag": "0012_rename_rep_to_performed_reps",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783868400000,
+      "tag": "0013_rename_treatment_plan_to_treatment_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783868640000,
+      "tag": "0014_rename_treatment_plan_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783868880000,
+      "tag": "0015_rename_treatment_plan_exercise_to_treatment_plan_exercises",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783869180000,
+      "tag": "0016_rename_treatment_plan_exercise_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783870200000,
+      "tag": "0017_rename_performed_reps_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792322400000,
+      "tag": "0018_expand_five_table_model",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792322460000,
+      "tag": "0019_contract_five_table_model",
+      "breakpoints": true
     }
   ]
 }

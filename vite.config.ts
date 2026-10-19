@@ -16,6 +16,7 @@ import performedRepsHandler from "./api/performed-reps";
 import prescribedExercisesHandler from "./api/prescribed-exercises";
 import todayRepsHandler from "./api/today-reps";
 import exerciseStatisticsHandler from "./api/exercise-statistics";
+import sessionTimesHandler from "./api/session-times";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +43,7 @@ export default defineConfig({
           "/prescribed-exercises": prescribedExercisesHandler,
           "/today-reps": todayRepsHandler,
           "/exercise-statistics": exerciseStatisticsHandler,
+          "/session-times": sessionTimesHandler,
         };
 
         server.middlewares.use("/api", (req, res, next) => {

@@ -1,8 +1,8 @@
 // Shared Drizzle schema (used by Vercel functions + local dev)
 // Keep this as the single source of truth.
 
-import { relations } from "drizzle-orm";
-import { index, pgTableCreator } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { check, index, pgTableCreator, uniqueIndex } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `vestibulon2_${name}`);
@@ -22,7 +22,7 @@ export const users = createTable(
       }),
     gender: d.varchar("gender", { length: 16 }),
     points: d.integer("points").notNull().default(0),
-    numberOfSessions: d.integer("number_of_sessions").notNull().default(1),
+    timeZone: d.varchar("time_zone", { length: 128 }).notNull().default("UTC"),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
       .$defaultFn(() => new Date())
@@ -42,40 +42,111 @@ export const users = createTable(
   ],
 );
 
-export const prescribedExercises = createTable(
-  "prescribed_exercises",
+export const treatmentPlans = createTable(
+  "treatment_plans",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    patientUserId: d
+      .varchar("patient_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    clinicianUserId: d
+      .varchar("clinician_user_id", { length: 256 })
+      .references(() => users.workosUserId, { onDelete: "set null" }),
+    sessionsPerDay: d.integer("sessions_per_day").notNull(),
+    effectiveDate: d.date("effective_date", { mode: "string" }).notNull(),
+    effectiveSessionIndex: d.integer("effective_session_index").notNull().default(1),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    index("treatment_plans_patient_created_idx").on(t.patientUserId, t.createdAt, t.id),
+    index("treatment_plans_patient_effective_idx").on(
+      t.patientUserId,
+      t.effectiveDate,
+      t.effectiveSessionIndex,
+    ),
+    check("treatment_plans_sessions_check", sql`${t.sessionsPerDay} between 1 and 10`),
+    check(
+      "treatment_plans_effective_session_check",
+      sql`${t.effectiveSessionIndex} between 1 and 10`,
+    ),
+  ],
+);
+
+export const treatmentPlanExercises = createTable(
+  "treatment_plan_exercises",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    treatmentPlanId: d
+      .integer("treatment_plan_id")
+      .notNull()
+      .references(() => treatmentPlans.id, { onDelete: "cascade" }),
+    exerciseCode: d.varchar("exercise_code", { length: 256 }).notNull(),
+    secondsPerRep: d.integer("seconds_per_rep").notNull(),
+    repsPerSession: d.integer("reps_per_session").notNull(),
+    targetBpm: d.integer("target_bpm").notNull(),
+    position: d.varchar("position", { length: 256 }).notNull(),
+    background: d.varchar("background", { length: 256 }).notNull(),
+    recommendedVAS: d.integer("recommended_vas").notNull(),
+  }),
+  (t) => [
+    index("treatment_plan_exercises_plan_idx").on(t.treatmentPlanId),
+    uniqueIndex("treatment_plan_exercises_plan_code_uidx").on(
+      t.treatmentPlanId,
+      t.exerciseCode,
+    ),
+  ],
+);
+
+export const sessionTimes = createTable(
+  "session_times",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
     userId: d
       .varchar("user_id", { length: 256 })
       .notNull()
-      .references(() => users.workosUserId),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+      .references(() => users.workosUserId, {
+        onDelete: "cascade",
+      }),
+    sessionIndex: d.integer("session_index").notNull(),
+    localTime: d.time("local_time").notNull(),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
       .$defaultFn(() => new Date())
       .notNull(),
-    numberOfSeconds: d.integer("number_of_seconds").notNull(),
-    numberOfRepetions: d.integer("number_of_repetions").notNull(),
-    metronomeBpm: d.integer("metronome_bpm").notNull(),
-    metronomeBpmTemp: d.integer("metronome_bpm_temp"),
-    active: d.boolean("active").notNull().default(true),
-    position: d.varchar("position", { length: 256 }).notNull(),
-    background: d.varchar("background", { length: 256 }).notNull(),
-    recomendedVAS: d.integer("recomended_vas").notNull(),
+    updatedAt: d
+      .timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .$onUpdateFn(() => new Date())
+      .notNull(),
   }),
-  (t) => [index("prescribed_exercises_user_exercise_idx").on(t.userId, t.exerciseName)],
+  (t) => [
+    uniqueIndex("session_times_user_index_uidx").on(t.userId, t.sessionIndex),
+    uniqueIndex("session_times_user_time_uidx").on(t.userId, t.localTime),
+    index("session_times_user_idx").on(t.userId),
+    check("session_times_index_check", sql`${t.sessionIndex} between 1 and 10`),
+  ],
 );
 
 export const performedReps = createTable(
   "performed_reps",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    prescribedExerciseId: d.integer("prescribed_exercise_id").references(() => prescribedExercises.id, {
-      onDelete: "cascade",
-    }),
-    userId: d.varchar("user_id", { length: 256 }).notNull(),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
+    treatmentPlanExerciseId: d
+      .integer("treatment_plan_exercise_id")
+      .references(() => treatmentPlanExercises.id, { onDelete: "restrict" }),
+    patientUserId: d
+      .varchar("patient_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    scheduledDate: d.date("scheduled_date", { mode: "string" }),
+    sessionIndex: d.integer("session_index"),
+    repIndex: d.integer("rep_index"),
+    scheduledAt: d.timestamp("scheduled_at", { withTimezone: true }),
+    clientRequestId: d.uuid("client_request_id"),
     dizziness: d.integer(),
     nausea: d.integer(),
     generalDifficulty: d.integer("general_difficulty"),
@@ -87,175 +158,47 @@ export const performedReps = createTable(
     flagPaused: d.boolean("flag_paused").default(false),
   }),
   (t) => [
-    index("performed_reps_prescribed_exercise_idx").on(t.prescribedExerciseId),
-    index("performed_reps_user_exercise_idx").on(t.userId, t.exerciseName),
-  ],
-);
-
-export const prescribedExerciseHistory = createTable(
-  "prescribed_exercise_history",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    prescribedExerciseId: d
-      .integer("prescribed_exercise_id")
-      .notNull()
-      .references(() => prescribedExercises.id, { onDelete: "cascade" }),
-    userId: d
-      .varchar("user_id", { length: 256 })
-      .notNull()
-      .references(() => users.workosUserId, { onDelete: "cascade" }),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
-    numberOfRepetions: d.integer("number_of_repetions").notNull(),
-    active: d.boolean("active").notNull(),
-    effectiveFrom: d
-      .timestamp("effective_from", { withTimezone: true })
-      .notNull(),
-    createdAt: d
-      .timestamp("created_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  }),
-  (t) => [
-    index("prescribed_exercise_history_prescribed_exercise_effective_idx").on(t.prescribedExerciseId, t.effectiveFrom),
-    index("prescribed_exercise_history_user_exercise_idx").on(t.userId, t.exerciseName),
-  ],
-);
-
-export const userSessionHistory = createTable(
-  "user_session_history",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d
-      .varchar("user_id", { length: 256 })
-      .notNull()
-      .references(() => users.workosUserId, { onDelete: "cascade" }),
-    numberOfSessions: d.integer("number_of_sessions").notNull(),
-    effectiveFrom: d
-      .timestamp("effective_from", { withTimezone: true })
-      .notNull(),
-    createdAt: d
-      .timestamp("created_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  }),
-  (t) => [
-    index("user_session_history_user_effective_idx").on(
-      t.userId,
-      t.effectiveFrom,
+    index("performed_reps_treatment_plan_exercise_idx").on(
+      t.treatmentPlanExerciseId,
     ),
+    index("performed_reps_patient_schedule_idx").on(
+      t.patientUserId,
+      t.scheduledDate,
+      t.sessionIndex,
+    ),
+    uniqueIndex("performed_reps_slot_uidx")
+      .on(
+        t.patientUserId,
+        t.scheduledDate,
+        t.sessionIndex,
+        t.treatmentPlanExerciseId,
+        t.repIndex,
+      )
+      .where(sql`${t.scheduledDate} is not null`),
+    uniqueIndex("performed_reps_request_uidx")
+      .on(t.patientUserId, t.clientRequestId)
+      .where(sql`${t.clientRequestId} is not null`),
   ],
 );
-
-export const treatmentPlans = createTable(
-  "treatment_plan",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d
-      .varchar("user_id", { length: 256 })
-      .notNull()
-      .references(() => users.workosUserId, { onDelete: "cascade" }),
-    createdBy: d
-      .varchar("created_by", { length: 256 })
-      .notNull()
-      .references(() => users.workosUserId, { onDelete: "restrict" }),
-    numberOfSessions: d.integer("number_of_sessions").notNull(),
-    effectiveFrom: d
-      .timestamp("effective_from", { withTimezone: true })
-      .notNull(),
-    createdAt: d
-      .timestamp("created_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  }),
-  (t) => [
-    index("treatment_plan_user_effective_idx").on(t.userId, t.effectiveFrom),
-    index("treatment_plan_user_idx").on(t.userId),
-  ],
-);
-
-export const treatmentPlanExercises = createTable(
-  "treatment_plan_exercise",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    treatmentPlanId: d
-      .integer("treatment_plan_id")
-      .notNull()
-      .references(() => treatmentPlans.id, { onDelete: "cascade" }),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
-    numberOfSeconds: d.integer("number_of_seconds").notNull(),
-    numberOfRepetions: d.integer("number_of_repetions").notNull(),
-    metronomeBpm: d.integer("metronome_bpm").notNull(),
-    position: d.varchar("position", { length: 256 }).notNull(),
-    background: d.varchar("background", { length: 256 }).notNull(),
-    recomendedVAS: d.integer("recomended_vas").notNull(),
-  }),
-  (t) => [
-    index("treatment_plan_exercise_plan_idx").on(t.treatmentPlanId),
-    index("treatment_plan_exercise_name_idx").on(t.treatmentPlanId, t.exerciseName),
-  ],
-);
-
-export const todayReps = createTable(
-  "today_reps",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    userId: d
-      .varchar("user_id", { length: 256 })
-      .notNull()
-      .references(() => users.workosUserId, {
-        onDelete: "cascade",
-      }),
-    practiceTime: d
-      .timestamp("practice_time", { withTimezone: true })
-      .notNull(),
-    exerciseName: d.varchar("exercise_name", { length: 256 }).notNull(),
-    performedRepId: d.integer("performed_rep_id").references(() => performedReps.id, {
-      onDelete: "set null",
-    }),
-  }),
-  (t) => [
-    index("today_rep_user_practice_idx").on(t.userId, t.practiceTime),
-    index("today_rep_user_exercise_idx").on(t.userId, t.exerciseName),
-  ],
-);
-
-export const prescribedExercisesRelations = relations(prescribedExercises, ({ many, one }) => ({
-  user: one(users, {
-    fields: [prescribedExercises.userId],
-    references: [users.workosUserId],
-  }),
-  performedReps: many(performedReps),
-  history: many(prescribedExerciseHistory),
-}));
-
-export const prescribedExerciseHistoryRelations = relations(prescribedExerciseHistory, ({ one }) => ({
-  prescribedExercise: one(prescribedExercises, {
-    fields: [prescribedExerciseHistory.prescribedExerciseId],
-    references: [prescribedExercises.id],
-  }),
-}));
-
-export const userSessionHistoryRelations = relations(userSessionHistory, ({ one }) => ({
-  user: one(users, {
-    fields: [userSessionHistory.userId],
-    references: [users.workosUserId],
-  }),
-}));
 
 export const performedRepsRelations = relations(performedReps, ({ one }) => ({
-  prescribedExercise: one(prescribedExercises, {
-    fields: [performedReps.prescribedExerciseId],
-    references: [prescribedExercises.id],
+  treatmentPlanExercise: one(treatmentPlanExercises, {
+    fields: [performedReps.treatmentPlanExerciseId],
+    references: [treatmentPlanExercises.id],
+  }),
+  patient: one(users, {
+    fields: [performedReps.patientUserId],
+    references: [users.workosUserId],
   }),
 }));
 
 export const treatmentPlansRelations = relations(treatmentPlans, ({ one, many }) => ({
   user: one(users, {
-    fields: [treatmentPlans.userId],
+    fields: [treatmentPlans.patientUserId],
     references: [users.workosUserId],
   }),
   createdByUser: one(users, {
-    fields: [treatmentPlans.createdBy],
+    fields: [treatmentPlans.clinicianUserId],
     references: [users.workosUserId],
     relationName: "treatment_plan_creator",
   }),
@@ -264,13 +207,21 @@ export const treatmentPlansRelations = relations(treatmentPlans, ({ one, many })
 
 export const treatmentPlanExercisesRelations = relations(
   treatmentPlanExercises,
-  ({ one }) => ({
+  ({ many, one }) => ({
     treatmentPlan: one(treatmentPlans, {
       fields: [treatmentPlanExercises.treatmentPlanId],
       references: [treatmentPlans.id],
     }),
+    performedReps: many(performedReps),
   }),
 );
+
+export const sessionTimesRelations = relations(sessionTimes, ({ one }) => ({
+  user: one(users, {
+    fields: [sessionTimes.userId],
+    references: [users.workosUserId],
+  }),
+}));
 
 export const usersRelations = relations(users, ({ many, one }) => ({
   clinician: one(users, {
@@ -281,7 +232,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   patients: many(users, {
     relationName: "clinician_patients",
   }),
-  prescribedExercises: many(prescribedExercises),
-  sessionHistory: many(userSessionHistory),
   treatmentPlans: many(treatmentPlans),
+  sessionTimes: many(sessionTimes),
+  performedReps: many(performedReps),
 }));

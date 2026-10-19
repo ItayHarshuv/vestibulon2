@@ -282,7 +282,7 @@ export async function getUserProfileByWorkosUserId(workosUserId: string) {
       clinicianUserId: users.clinicianUserId,
       gender: users.gender,
       points: users.points,
-      numberOfSessions: users.numberOfSessions,
+      timeZone: users.timeZone,
     })
     .from(users)
     .where(eq(users.workosUserId, workosUserId))
@@ -301,7 +301,7 @@ export async function getUserProfileByUsername(username: string) {
       clinicianUserId: users.clinicianUserId,
       gender: users.gender,
       points: users.points,
-      numberOfSessions: users.numberOfSessions,
+      timeZone: users.timeZone,
     })
     .from(users)
     .where(eq(users.username, username))
@@ -328,7 +328,7 @@ export async function getUserProfileByIdentifier(identifier: string) {
       clinicianUserId: users.clinicianUserId,
       gender: users.gender,
       points: users.points,
-      numberOfSessions: users.numberOfSessions,
+      timeZone: users.timeZone,
     })
     .from(users)
     .where(filters.length === 1 ? filters[0]! : or(...filters))

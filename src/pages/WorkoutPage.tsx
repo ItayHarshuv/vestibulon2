@@ -47,6 +47,7 @@ export function WorkoutPage() {
   const hasNavigatedToFinishRef = useRef(false);
   const fallbackWorkoutStartTimestampRef = useRef<number>(Date.now());
   const initializedPrescribedExerciseIdRef = useRef<number | null>(null);
+  const clientRequestIdRef = useRef<string>(crypto.randomUUID());
 
   const routeParamsResult = useMemo(
     () => prescribedExerciseRouteParamsSchema.safeParse({ prescribedExerciseId }),
@@ -73,7 +74,14 @@ export function WorkoutPage() {
         setLoading(true);
         setError(null);
 
-        const response = await apiFetch("/api/prescribed-exercises");
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const params = new URLSearchParams({ timeZone });
+        if (requestedPracticeTimeKey) {
+          params.set("practiceTimeKey", requestedPracticeTimeKey);
+        }
+        const response = await apiFetch(
+          `/api/prescribed-exercises?${params.toString()}`,
+        );
 
         if (!response.ok) {
           throw new Error("Failed to fetch prescribed exercises");
@@ -99,7 +107,7 @@ export function WorkoutPage() {
     }
 
     void fetchPrescribedExercise();
-  }, [isLoading, parsedPrescribedExerciseId, user]);
+  }, [isLoading, parsedPrescribedExerciseId, requestedPracticeTimeKey, user]);
 
   useEffect(() => {
     if (!prescribedExercise) {
@@ -121,6 +129,7 @@ export function WorkoutPage() {
     setCurrentRepNumber(1);
     setWorkoutStartTimestampMs(null);
     fallbackWorkoutStartTimestampRef.current = Date.now();
+    clientRequestIdRef.current = crypto.randomUUID();
   }, [prescribedExercise]);
 
   useEffect(() => {
@@ -238,7 +247,9 @@ export function WorkoutPage() {
         const response = await apiFetch("/api/performed-reps", {
           method: "POST",
           body: JSON.stringify({
-            prescribedExerciseId: prescribedExercise.id,
+            treatmentPlanExerciseId:
+              prescribedExercise.treatmentPlanExerciseId,
+            clientRequestId: clientRequestIdRef.current,
             practiceTimeKey: requestedPracticeTimeKey ?? undefined,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
@@ -366,23 +377,6 @@ export function WorkoutPage() {
         };
       });
 
-      void (async () => {
-        try {
-          const response = await apiFetch("/api/prescribed-exercises", {
-            method: "PATCH",
-            body: JSON.stringify({
-              prescribedExerciseId: prescribedExercise.id,
-              metronomeBpmTemp: nextBpm,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error("Failed to update metronome bpm temp");
-          }
-        } catch (err) {
-          console.error("Error updating metronome bpm temp:", err);
-        }
-      })();
     },
     [prescribedExercise, user],
   );

@@ -112,7 +112,13 @@ export function WorkoutRestPage() {
         setRestTimeEntries([]);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const [prescribedExercisesResponse, todayRepsResponse] = await Promise.all([
-          apiFetch("/api/prescribed-exercises"),
+          apiFetch(
+            `/api/prescribed-exercises?timeZone=${encodeURIComponent(timeZone)}${
+              requestedPracticeTimeKey
+                ? `&practiceTimeKey=${encodeURIComponent(requestedPracticeTimeKey)}`
+                : ""
+            }`,
+          ),
           apiFetch(`/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`),
         ]);
 
@@ -278,6 +284,7 @@ export function WorkoutRestPage() {
   }, [
     parsedPerformedRepId,
     parsedPrescribedExerciseId,
+    requestedPracticeTimeKey,
     routeParamsResult,
     workoutEndTimestampMs,
   ]);

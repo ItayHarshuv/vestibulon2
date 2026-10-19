@@ -1,28 +1,21 @@
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "./db/index.js";
 import {
   performedReps,
-  prescribedExerciseHistory,
-  prescribedExercises,
-  userSessionHistory,
+  treatmentPlanExercises,
+  treatmentPlans,
 } from "./db/schema.js";
-import { ensurePrescriptionHistoryForUser } from "./prescription-history-service.js";
 import {
   compareDateKeys,
-  createEndOfDayInTimeZone,
   getDateKeyInTimeZone,
   listDateKeysInclusive,
 } from "./timezone-utils.js";
 
-type PrescribedExerciseHistorySnapshot = {
-  numberOfRepetions: number;
-  active: boolean;
-  effectiveFrom: Date;
-};
-
-type SessionSnapshot = {
-  numberOfSessions: number;
-  effectiveFrom: Date;
+type PlanSnapshot = {
+  id: number;
+  sessionsPerDay: number;
+  effectiveDate: string;
+  effectiveSessionIndex: number;
 };
 
 export type ExerciseStatisticsDay = {
@@ -39,53 +32,41 @@ export type ExerciseStatisticsSeries = {
   days: ExerciseStatisticsDay[];
 };
 
-function resolveSnapshotForDate<T extends { effectiveFrom: Date }>(
-  snapshots: T[],
+function resolvePlanForSession(
+  plans: PlanSnapshot[],
   dateKey: string,
-  timeZone: string,
-): T | null {
-  if (snapshots.length === 0) {
-    return null;
-  }
-
-  const endOfDay = createEndOfDayInTimeZone(dateKey, timeZone).getTime();
-  let resolved: T | null = null;
-
-  for (const snapshot of snapshots) {
-    if (snapshot.effectiveFrom.getTime() <= endOfDay) {
-      resolved = snapshot;
-      continue;
-    }
-
-    break;
-  }
-
-  return resolved ?? snapshots[0] ?? null;
+  sessionIndex: number,
+) {
+  return (
+    plans
+      .filter(
+        (plan) =>
+          plan.effectiveDate < dateKey ||
+          (plan.effectiveDate === dateKey &&
+            plan.effectiveSessionIndex <= sessionIndex),
+      )
+      .at(-1) ?? null
+  );
 }
 
 function getPlannedRepsForDay(
-  prescribedExerciseIds: number[],
-  prescribedExerciseSnapshotsById: Map<number, PrescribedExerciseHistorySnapshot[]>,
-  sessionSnapshots: SessionSnapshot[],
+  exerciseName: string,
+  plans: PlanSnapshot[],
+  exercisesByPlan: Map<
+    number,
+    Array<{ exerciseName: string; repsPerSession: number }>
+  >,
   dateKey: string,
-  timeZone: string,
 ) {
-  const sessionSnapshot = resolveSnapshotForDate(sessionSnapshots, dateKey, timeZone);
-  const numberOfSessions = Math.max(sessionSnapshot?.numberOfSessions ?? 1, 1);
-
   let plannedReps = 0;
-
-  for (const prescribedExerciseId of prescribedExerciseIds) {
-    const snapshots = prescribedExerciseSnapshotsById.get(prescribedExerciseId) ?? [];
-    const prescription = resolveSnapshotForDate(snapshots, dateKey, timeZone);
-
-    if (!prescription?.active) {
-      continue;
-    }
-
-    plannedReps += numberOfSessions * Math.max(prescription.numberOfRepetions, 0);
+  for (let sessionIndex = 1; sessionIndex <= 10; sessionIndex += 1) {
+    const plan = resolvePlanForSession(plans, dateKey, sessionIndex);
+    if (!plan || sessionIndex > plan.sessionsPerDay) continue;
+    const exercise = (exercisesByPlan.get(plan.id) ?? []).find(
+      (candidate) => candidate.exerciseName === exerciseName,
+    );
+    plannedReps += Math.max(exercise?.repsPerSession ?? 0, 0);
   }
-
   return plannedReps;
 }
 
@@ -93,111 +74,105 @@ export async function getExerciseStatisticsForUser(
   userId: string,
   timeZone: string,
 ): Promise<ExerciseStatisticsSeries[]> {
-  await ensurePrescriptionHistoryForUser(userId);
-
   const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
 
-  const [prescribedExerciseRows, historyRows, sessionHistoryRows, completedPerformedRepRows] =
-    await Promise.all([
-      db
-        .select({
-          id: prescribedExercises.id,
-          exerciseName: prescribedExercises.exerciseName,
-          createdAt: prescribedExercises.createdAt,
-        })
-        .from(prescribedExercises)
-        .where(eq(prescribedExercises.userId, userId))
-        .orderBy(asc(prescribedExercises.createdAt), asc(prescribedExercises.id)),
-      db
-        .select({
-          prescribedExerciseId: prescribedExerciseHistory.prescribedExerciseId,
-          exerciseName: prescribedExerciseHistory.exerciseName,
-          numberOfRepetions: prescribedExerciseHistory.numberOfRepetions,
-          active: prescribedExerciseHistory.active,
-          effectiveFrom: prescribedExerciseHistory.effectiveFrom,
-        })
-        .from(prescribedExerciseHistory)
-        .where(eq(prescribedExerciseHistory.userId, userId))
-        .orderBy(asc(prescribedExerciseHistory.effectiveFrom), asc(prescribedExerciseHistory.id)),
-      db
-        .select({
-          numberOfSessions: userSessionHistory.numberOfSessions,
-          effectiveFrom: userSessionHistory.effectiveFrom,
-        })
-        .from(userSessionHistory)
-        .where(eq(userSessionHistory.userId, userId))
-        .orderBy(asc(userSessionHistory.effectiveFrom), asc(userSessionHistory.id)),
-      db
-        .select({
-          exerciseName: performedReps.exerciseName,
-          endTime: performedReps.endTime,
-        })
-        .from(performedReps)
-        .where(and(eq(performedReps.userId, userId), isNotNull(performedReps.endTime)))
-        .orderBy(asc(performedReps.endTime), asc(performedReps.id)),
-    ]);
-
-  const prescribedExerciseSnapshotsById = new Map<number, PrescribedExerciseHistorySnapshot[]>();
-  const prescribedExerciseIdsByExerciseName = new Map<string, number[]>();
-
-  for (const prescribedExercise of prescribedExerciseRows) {
-    const prescribedExerciseIds = prescribedExerciseIdsByExerciseName.get(prescribedExercise.exerciseName) ?? [];
-    prescribedExerciseIds.push(prescribedExercise.id);
-    prescribedExerciseIdsByExerciseName.set(prescribedExercise.exerciseName, prescribedExerciseIds);
-  }
-
-  for (const row of historyRows) {
-    const snapshots = prescribedExerciseSnapshotsById.get(row.prescribedExerciseId) ?? [];
-    snapshots.push({
-      numberOfRepetions: row.numberOfRepetions,
-      active: row.active,
-      effectiveFrom: row.effectiveFrom,
-    });
-    prescribedExerciseSnapshotsById.set(row.prescribedExerciseId, snapshots);
-
-    if (!prescribedExerciseIdsByExerciseName.has(row.exerciseName)) {
-      prescribedExerciseIdsByExerciseName.set(row.exerciseName, [row.prescribedExerciseId]);
+  const planRows = await db
+    .select({
+      id: treatmentPlans.id,
+      sessionsPerDay: treatmentPlans.sessionsPerDay,
+      effectiveDate: treatmentPlans.effectiveDate,
+      effectiveSessionIndex: treatmentPlans.effectiveSessionIndex,
+    })
+    .from(treatmentPlans)
+    .where(eq(treatmentPlans.patientUserId, userId))
+    .orderBy(
+      asc(treatmentPlans.effectiveDate),
+      asc(treatmentPlans.effectiveSessionIndex),
+      asc(treatmentPlans.createdAt),
+      asc(treatmentPlans.id),
+    );
+  const planIds = planRows.map((plan) => plan.id);
+  const [exerciseRows, completedRows] = await Promise.all([
+    planIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({
+            treatmentPlanId: treatmentPlanExercises.treatmentPlanId,
+            exerciseName: treatmentPlanExercises.exerciseCode,
+            repsPerSession: treatmentPlanExercises.repsPerSession,
+          })
+          .from(treatmentPlanExercises)
+          .where(inArray(treatmentPlanExercises.treatmentPlanId, planIds))
+          .orderBy(asc(treatmentPlanExercises.id)),
+    db
+      .select({
+        exerciseName: treatmentPlanExercises.exerciseCode,
+        scheduledDate: performedReps.scheduledDate,
+        endTime: performedReps.endTime,
+      })
+      .from(performedReps)
+      .innerJoin(
+        treatmentPlanExercises,
+        eq(performedReps.treatmentPlanExerciseId, treatmentPlanExercises.id),
+      )
+      .where(
+        and(
+          eq(performedReps.patientUserId, userId),
+          isNotNull(performedReps.endTime),
+        ),
+      )
+      .orderBy(asc(performedReps.endTime), asc(performedReps.id)),
+  ]);
+  const exercisesByPlan = new Map<
+    number,
+    Array<{ exerciseName: string; repsPerSession: number }>
+  >();
+  const exerciseNames = new Set<string>();
+  const startDateByExercise = new Map<string, string>();
+  const planById = new Map(planRows.map((plan) => [plan.id, plan]));
+  for (const exercise of exerciseRows) {
+    const rows = exercisesByPlan.get(exercise.treatmentPlanId) ?? [];
+    rows.push(exercise);
+    exercisesByPlan.set(exercise.treatmentPlanId, rows);
+    exerciseNames.add(exercise.exerciseName);
+    const effectiveDate = planById.get(exercise.treatmentPlanId)?.effectiveDate;
+    const currentStart = startDateByExercise.get(exercise.exerciseName);
+    if (
+      effectiveDate &&
+      (!currentStart || compareDateKeys(effectiveDate, currentStart) < 0)
+    ) {
+      startDateByExercise.set(exercise.exerciseName, effectiveDate);
     }
   }
 
   const completedRepsByExerciseAndDate = new Map<string, Map<string, number>>();
 
-  for (const row of completedPerformedRepRows) {
+  for (const row of completedRows) {
     if (!row.endTime) {
       continue;
     }
 
-    const dateKey = getDateKeyInTimeZone(row.endTime, timeZone);
+    const dateKey =
+      row.scheduledDate ?? getDateKeyInTimeZone(row.endTime, timeZone);
     const exerciseCounts =
       completedRepsByExerciseAndDate.get(row.exerciseName) ?? new Map<string, number>();
     exerciseCounts.set(dateKey, (exerciseCounts.get(dateKey) ?? 0) + 1);
     completedRepsByExerciseAndDate.set(row.exerciseName, exerciseCounts);
-    if (!prescribedExerciseIdsByExerciseName.has(row.exerciseName)) {
-      prescribedExerciseIdsByExerciseName.set(row.exerciseName, []);
-    }
+    exerciseNames.add(row.exerciseName);
   }
 
-  const exerciseNames = [...prescribedExerciseIdsByExerciseName.keys()].sort((left, right) =>
+  const sortedExerciseNames = [...exerciseNames].sort((left, right) =>
     left.localeCompare(right, "he"),
   );
 
-  const prescribedExerciseCreatedAtByExercise = new Map<string, string>();
-  for (const prescribedExercise of prescribedExerciseRows) {
-    const createdKey = getDateKeyInTimeZone(prescribedExercise.createdAt, timeZone);
-    const existingKey = prescribedExerciseCreatedAtByExercise.get(prescribedExercise.exerciseName);
-    if (!existingKey || compareDateKeys(createdKey, existingKey) < 0) {
-      prescribedExerciseCreatedAtByExercise.set(prescribedExercise.exerciseName, createdKey);
-    }
-  }
-
-  return exerciseNames.map((exerciseName) => {
-    const prescribedExerciseIds = prescribedExerciseIdsByExerciseName.get(exerciseName) ?? [];
+  return sortedExerciseNames.map((exerciseName) => {
     const performedRepDates = [
       ...(completedRepsByExerciseAndDate.get(exerciseName)?.keys() ?? []),
     ];
     const firstPerformedRepDate =
       performedRepDates.sort(compareDateKeys)[0] ?? null;
-    const prescribedExerciseStartDate = prescribedExerciseCreatedAtByExercise.get(exerciseName) ?? todayKey;
+    const prescribedExerciseStartDate =
+      startDateByExercise.get(exerciseName) ?? todayKey;
     const startDate =
       firstPerformedRepDate &&
       compareDateKeys(firstPerformedRepDate, prescribedExerciseStartDate) < 0
@@ -207,11 +182,10 @@ export async function getExerciseStatisticsForUser(
 
     const days = listDateKeysInclusive(startDate, endDate).map((dateKey) => {
       const plannedReps = getPlannedRepsForDay(
-        prescribedExerciseIds,
-        prescribedExerciseSnapshotsById,
-        sessionHistoryRows,
+        exerciseName,
+        planRows,
+        exercisesByPlan,
         dateKey,
-        timeZone,
       );
       const completedReps =
         completedRepsByExerciseAndDate.get(exerciseName)?.get(dateKey) ?? 0;

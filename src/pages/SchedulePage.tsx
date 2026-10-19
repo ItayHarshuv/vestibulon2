@@ -1,44 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "~/auth/AuthProvider";
 import { apiFetch } from "~/lib/api";
-import { getZodErrorMessage, todayRepsResponseSchema } from "~/lib/validation";
-
-type TodayRepRow = {
-  id: number;
-  practiceTime: string;
-  exerciseName: string;
-  performedRepId: number | null;
-};
-
-function getPracticeTimeKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}-${String(date.getHours()).padStart(2, "0")}-${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatTimeInputValue(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(date);
-}
-
-function extractSessionTimes(todayReps: TodayRepRow[]) {
-  const distinctSessionTimes = new Map<string, string>();
-  const sortedRows = [...todayReps].sort(
-    (left, right) =>
-      new Date(left.practiceTime).getTime() - new Date(right.practiceTime).getTime(),
-  );
-
-  for (const row of sortedRows) {
-    const practiceDate = new Date(row.practiceTime);
-    const practiceTimeKey = getPracticeTimeKey(practiceDate);
-    if (!distinctSessionTimes.has(practiceTimeKey)) {
-      distinctSessionTimes.set(practiceTimeKey, formatTimeInputValue(practiceDate));
-    }
-  }
-
-  return [...distinctSessionTimes.values()];
-}
+import {
+  getZodErrorMessage,
+  sessionTimesResponseSchema,
+} from "~/lib/validation";
 
 export function SchedulePage() {
   const { isLoading, user } = useAuth();
@@ -67,21 +33,21 @@ export function SchedulePage() {
         setError(null);
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const response = await apiFetch(
-          `/api/today-reps?timeZone=${encodeURIComponent(timeZone)}`,
+          `/api/session-times?timeZone=${encodeURIComponent(timeZone)}`,
         );
 
         if (!response.ok) {
           throw new Error("Failed to fetch today's reps");
         }
 
-        const result = todayRepsResponseSchema.safeParse(await response.json());
+        const result = sessionTimesResponseSchema.safeParse(await response.json());
         if (!result.success) {
           throw new Error(
-            getZodErrorMessage(result.error, "Invalid today's reps response"),
+            getZodErrorMessage(result.error, "Invalid session times response"),
           );
         }
 
-        const nextSessionTimes = extractSessionTimes(result.data);
+        const nextSessionTimes = result.data.map((row) => row.localTime);
         setSessionTimes(nextSessionTimes);
         setInitialSessionTimes(nextSessionTimes);
       } catch (fetchError) {
@@ -132,7 +98,7 @@ export function SchedulePage() {
       setIsSaving(true);
       setSaveError(null);
       const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const response = await apiFetch("/api/today-reps", {
+      const response = await apiFetch("/api/session-times", {
         method: "PATCH",
         body: JSON.stringify({
           timeZone,
@@ -144,14 +110,14 @@ export function SchedulePage() {
         throw new Error("Failed to update today's reps");
       }
 
-      const result = todayRepsResponseSchema.safeParse(await response.json());
+      const result = sessionTimesResponseSchema.safeParse(await response.json());
       if (!result.success) {
         throw new Error(
-          getZodErrorMessage(result.error, "Invalid today's reps response"),
+          getZodErrorMessage(result.error, "Invalid session times response"),
         );
       }
 
-      const nextSessionTimes = extractSessionTimes(result.data);
+      const nextSessionTimes = result.data.map((row) => row.localTime);
       setSessionTimes(nextSessionTimes);
       setInitialSessionTimes(nextSessionTimes);
       setSaveSuccessMessage("זמני התרגול עודכנו בהצלחה");
@@ -174,7 +140,7 @@ export function SchedulePage() {
       </h1>
 
       <p className="mt-4 text-center text-lg text-gray-700">
-        כאן ניתן לעדכן את שעות התרגול של היום.
+        כאן ניתן לעדכן את שעות התרגול הקבועות לכל יום.
       </p>
 
       {loading && <p className="mt-8 text-center text-gray-600">טוען זמנים...</p>}
