@@ -1,12 +1,16 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { treatmentPlanExercises, treatmentPlans, users } from "./db/schema.js";
+import {
+  sessionTimes,
+  treatmentPlanExercises,
+  treatmentPlans,
+  users,
+} from "./db/schema.js";
 import { getPlanActivationBoundary } from "./daily-schedule-service.js";
 import { ensureSessionTimesForUser } from "./session-times-service.js";
+import { buildDefaultSessionTimes } from "./timezone-utils.js";
 import type { z } from "zod";
-import type {
-  saveTreatmentPlanBodySchema,
-} from "../src/lib/validation.js";
+import type { saveTreatmentPlanBodySchema } from "../src/lib/validation.js";
 
 type SaveTreatmentPlanBody = z.infer<typeof saveTreatmentPlanBodySchema>;
 
@@ -78,6 +82,13 @@ export async function saveTreatmentPlanForUser(
   );
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+    const existingPlanRows = await tx
+      .select({ sessionsPerDay: treatmentPlans.sessionsPerDay })
+      .from(treatmentPlans)
+      .where(eq(treatmentPlans.patientUserId, userId))
+      .orderBy(asc(treatmentPlans.createdAt), asc(treatmentPlans.id));
+    const previousSessionsPerDay =
+      existingPlanRows.at(-1)?.sessionsPerDay ?? null;
     await tx
       .update(users)
       .set({ timeZone })
@@ -110,6 +121,19 @@ export async function saveTreatmentPlanForUser(
         })),
       )
       .returning();
+    if (
+      previousSessionsPerDay !== null &&
+      previousSessionsPerDay !== numberOfSessions
+    ) {
+      await tx.delete(sessionTimes).where(eq(sessionTimes.userId, userId));
+      await tx.insert(sessionTimes).values(
+        buildDefaultSessionTimes(numberOfSessions).map((localTime, index) => ({
+          userId,
+          sessionIndex: index + 1,
+          localTime,
+        })),
+      );
+    }
     return { planId, insertedExercises };
   });
   await ensureSessionTimesForUser(userId, numberOfSessions, timeZone);

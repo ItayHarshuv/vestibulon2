@@ -82,7 +82,11 @@ export async function getDailyScheduleForUser(
     return plan.id > latest.id ? plan : latest;
   });
   const maxSessions = Math.max(...plans.map((plan) => plan.sessionsPerDay), 1);
-  const timeRows = await ensureSessionTimesForUser(userId, maxSessions, timeZone);
+  const timeRows = await ensureSessionTimesForUser(
+    userId,
+    maxSessions,
+    timeZone,
+  );
   const timeByIndex = new Map(
     timeRows.map((row) => [row.sessionIndex, row.localTime.slice(0, 5)]),
   );
@@ -94,7 +98,9 @@ export async function getDailyScheduleForUser(
     }
   }
 
-  const planIds = [...new Set([...applicablePlans.values()].map((plan) => plan.id))];
+  const planIds = [
+    ...new Set([...applicablePlans.values()].map((plan) => plan.id)),
+  ];
   if (planIds.length === 0) return [];
 
   const [exerciseRows, performedRows] = await Promise.all([
@@ -153,7 +159,11 @@ export async function getDailyScheduleForUser(
     if (!localTime) continue;
     const practiceTime = createDateInTimeZone(dateKey, localTime, timeZone);
     for (const exercise of exercisesByPlan.get(plan.id) ?? []) {
-      for (let repIndex = 1; repIndex <= exercise.repsPerSession; repIndex += 1) {
+      for (
+        let repIndex = 1;
+        repIndex <= exercise.repsPerSession;
+        repIndex += 1
+      ) {
         result.push({
           id: syntheticId,
           practiceTime: practiceTime.toISOString(),
@@ -236,10 +246,26 @@ export async function getPlanActivationBoundary(
     nextSessionsPerDay,
     ...rows.map((row) => row.sessionIndex),
   );
-  if (currentSessionIndex !== null && currentSessionIndex < maxSessionIndex) {
+  const currentSessionHasPerformedReps =
+    currentSessionIndex !== null &&
+    rows.some(
+      (row) =>
+        row.sessionIndex === currentSessionIndex && row.performedRepId !== null,
+    );
+  if (
+    currentSessionIndex !== null &&
+    currentSessionHasPerformedReps &&
+    currentSessionIndex < maxSessionIndex
+  ) {
     return {
       effectiveDate: today,
       effectiveSessionIndex: currentSessionIndex + 1,
+    };
+  }
+  if (currentSessionIndex !== null && !currentSessionHasPerformedReps) {
+    return {
+      effectiveDate: today,
+      effectiveSessionIndex: currentSessionIndex,
     };
   }
   return {
