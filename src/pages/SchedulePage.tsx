@@ -165,27 +165,31 @@ export function SchedulePage() {
 
           <div className="mt-6 space-y-4">
             {sessionTimes.map((sessionTime, index) => (
-              <label
+              <div
                 key={`${index}-${initialSessionTimes[index] ?? sessionTime}`}
                 className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
               >
-                <span className="block text-lg font-semibold text-gray-900">
+                <p className="block text-lg font-semibold text-gray-900">
                   זמן תרגול {index + 1}
-                </span>
+                </p>
 
                 <input
                   type="time"
+                  aria-label={`זמן תרגול ${index + 1}`}
                   value={sessionTime}
+                  onClick={(event) => {
+                    event.currentTarget.showPicker?.();
+                  }}
                   onChange={(event) => {
                     const nextSessionTimes = [...sessionTimes];
                     nextSessionTimes[index] = event.target.value;
                     setSaveSuccessMessage(null);
                     setSessionTimes(nextSessionTimes);
                   }}
-                  className="mt-3 w-full rounded-lg border border-gray-300 px-4 py-3 text-left text-xl text-gray-900"
+                  className="mt-3 w-full cursor-pointer rounded-lg border border-gray-300 px-4 py-3 text-left text-xl text-gray-900"
                   dir="ltr"
                 />
-              </label>
+              </div>
             ))}
           </div>
 
