@@ -10,7 +10,7 @@ if (!databaseUrl) {
 }
 
 export default {
-  schema: "./api/db/schema.ts",
+  schema: "./server/db/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
     url: databaseUrl,

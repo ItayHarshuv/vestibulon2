@@ -5,7 +5,7 @@ import {
   getWorkOS,
   handleOptions,
   setApiHeaders,
-} from "../../../api/auth.js";
+} from "../../auth.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res, "POST,OPTIONS")) {

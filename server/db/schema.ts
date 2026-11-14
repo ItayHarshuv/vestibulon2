@@ -131,6 +131,121 @@ export const sessionTimes = createTable(
   ],
 );
 
+export const pushSubscriptions = createTable(
+  "push_subscriptions",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    userId: d
+      .varchar("user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    endpoint: d.text("endpoint").notNull(),
+    p256dh: d.text("p256dh").notNull(),
+    auth: d.text("auth").notNull(),
+    lastNotificationKey: d.varchar("last_notification_key", { length: 64 }),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: d
+      .timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .$onUpdateFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    uniqueIndex("push_subscriptions_endpoint_uidx").on(t.endpoint),
+    index("push_subscriptions_user_idx").on(t.userId),
+  ],
+);
+
+export const conversations = createTable(
+  "conversations",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    patientUserId: d
+      .varchar("patient_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    clinicianUserId: d
+      .varchar("clinician_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: d
+      .timestamp("updated_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .$onUpdateFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    uniqueIndex("conversations_patient_clinician_uidx").on(
+      t.patientUserId,
+      t.clinicianUserId,
+    ),
+    index("conversations_patient_idx").on(t.patientUserId),
+    index("conversations_clinician_idx").on(t.clinicianUserId),
+  ],
+);
+
+export const messages = createTable(
+  "messages",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    conversationId: d
+      .integer("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    senderUserId: d
+      .varchar("sender_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    body: d.varchar("body", { length: 4000 }).notNull(),
+    clientMessageId: d.uuid("client_message_id").notNull(),
+    createdAt: d
+      .timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  }),
+  (t) => [
+    index("messages_conversation_created_idx").on(
+      t.conversationId,
+      t.createdAt,
+      t.id,
+    ),
+    uniqueIndex("messages_sender_client_uidx").on(
+      t.senderUserId,
+      t.clientMessageId,
+    ),
+  ],
+);
+
+export const conversationParticipants = createTable(
+  "conversation_participants",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    conversationId: d
+      .integer("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    userId: d
+      .varchar("user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    lastReadAt: d.timestamp("last_read_at", { withTimezone: true }),
+  }),
+  (t) => [
+    uniqueIndex("conversation_participants_conversation_user_uidx").on(
+      t.conversationId,
+      t.userId,
+    ),
+    index("conversation_participants_user_idx").on(t.userId),
+  ],
+);
+
 export const performedReps = createTable(
   "performed_reps",
   (d) => ({
@@ -223,6 +338,59 @@ export const sessionTimesRelations = relations(sessionTimes, ({ one }) => ({
   }),
 }));
 
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [pushSubscriptions.userId],
+      references: [users.workosUserId],
+    }),
+  }),
+);
+
+export const conversationsRelations = relations(
+  conversations,
+  ({ many, one }) => ({
+    patient: one(users, {
+      fields: [conversations.patientUserId],
+      references: [users.workosUserId],
+      relationName: "patient_conversations",
+    }),
+    clinician: one(users, {
+      fields: [conversations.clinicianUserId],
+      references: [users.workosUserId],
+      relationName: "clinician_conversations",
+    }),
+    messages: many(messages),
+    participants: many(conversationParticipants),
+  }),
+);
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  sender: one(users, {
+    fields: [messages.senderUserId],
+    references: [users.workosUserId],
+  }),
+}));
+
+export const conversationParticipantsRelations = relations(
+  conversationParticipants,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationParticipants.conversationId],
+      references: [conversations.id],
+    }),
+    user: one(users, {
+      fields: [conversationParticipants.userId],
+      references: [users.workosUserId],
+    }),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   clinician: one(users, {
     fields: [users.clinicianUserId],
@@ -234,5 +402,14 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   treatmentPlans: many(treatmentPlans),
   sessionTimes: many(sessionTimes),
+  pushSubscriptions: many(pushSubscriptions),
+  sentMessages: many(messages),
+  conversationParticipants: many(conversationParticipants),
+  patientConversations: many(conversations, {
+    relationName: "patient_conversations",
+  }),
+  clinicianConversations: many(conversations, {
+    relationName: "clinician_conversations",
+  }),
   performedReps: many(performedReps),
 }));

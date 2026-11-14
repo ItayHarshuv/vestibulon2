@@ -5,19 +5,19 @@ import {
   getAuthenticatedUser,
   handleOptions,
   setApiHeaders,
-} from "./auth.js";
-import { db } from "./db/index.js";
+} from "../server/auth.js";
+import { db } from "../server/db/index.js";
 import {
   performedReps,
   treatmentPlanExercises,
   treatmentPlans,
   users,
-} from "./db/schema.js";
+} from "../server/db/schema.js";
 import {
   getDailyScheduleForUser,
   selectCurrentSessionIndex,
-} from "./daily-schedule-service.js";
-import { getDateKeyInTimeZone } from "./timezone-utils.js";
+} from "../server/daily-schedule-service.js";
+import { getDateKeyInTimeZone } from "../server/timezone-utils.js";
 import {
   createPerformedRepBodySchema,
   getPerformedRepsQuerySchema,

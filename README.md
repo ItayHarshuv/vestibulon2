@@ -49,6 +49,19 @@ npm run docker:db:push
 - Logs: `npm run docker:logs`
 - Stop: `npm run docker:down`
 
+## Web Push notifications
+
+Web Push requires HTTPS in production (localhost is allowed for development).
+Generate VAPID keys once, then configure `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `CRON_SECRET` as shown in
+`.env.example`. Apply the latest database migration before enabling
+notifications.
+
+The Vercel cron in `vercel.json` checks for due reminders every minute. This
+frequency requires a Vercel plan that supports per-minute cron jobs. If the
+deployment uses a different scheduler, call `GET /api/cron/push-reminders`
+every minute with `Authorization: Bearer <CRON_SECRET>`.
+
 ## Local development (without Docker)
 
 If you prefer to run everything on your machine:

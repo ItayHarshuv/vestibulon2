@@ -5,17 +5,17 @@ import {
   getAuthenticatedUser,
   handleOptions,
   setApiHeaders,
-} from "./auth.js";
-import { db } from "./db/index.js";
+} from "../server/auth.js";
+import { db } from "../server/db/index.js";
 import {
   performedReps,
   treatmentPlanExercises,
   users,
-} from "./db/schema.js";
+} from "../server/db/schema.js";
 import {
   getDailyScheduleForUser,
   selectCurrentSessionIndex,
-} from "./daily-schedule-service.js";
+} from "../server/daily-schedule-service.js";
 import {
   getZodErrorMessage,
   prescribedExercisesQuerySchema,

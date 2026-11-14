@@ -141,6 +141,20 @@
       "when": 1792322460000,
       "tag": "0019_contract_five_table_model",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792422000000,
+      "tag": "0020_web_push_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792461600000,
+      "tag": "0021_chat",
+      "breakpoints": true
     }
   ]
 }

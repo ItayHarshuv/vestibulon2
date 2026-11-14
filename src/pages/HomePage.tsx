@@ -307,8 +307,12 @@ export function HomePage() {
           backDestination="/"
         />
         <HomeActionButton
-          to="/"
-          label="הודעות מקלינאים"
+          to="/messages"
+          label={
+            user?.role === "clinician"
+              ? "שליחת הודעה למטופל/ת"
+              : "הודעות מקלינאים"
+          }
           iconSrc="/assets/icons/messages.svg"
         />
       </div>

@@ -5,6 +5,11 @@ import {
   getZodErrorMessage,
   sessionTimesResponseSchema,
 } from "~/lib/validation";
+import {
+  enableWebPush,
+  sendTestWebPush,
+  type WebPushResult,
+} from "~/lib/webPush";
 
 export function SchedulePage() {
   const { isLoading, user } = useAuth();
@@ -15,6 +20,9 @@ export function SchedulePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [pushAction, setPushAction] = useState<"enable" | "test" | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -130,6 +138,42 @@ export function SchedulePage() {
     }
   }
 
+  function getPushResultMessage(result: WebPushResult, isTest: boolean) {
+    switch (result) {
+      case "enabled":
+        return isTest
+          ? "התראת בדיקה נשלחה. היא אמורה להופיע בעוד מספר שניות."
+          : "ההתראות הופעלו. נזכיר לך בשעות התרגול שבחרת.";
+      case "permission-denied":
+        return "ההרשאה להתראות חסומה. יש לאפשר התראות בהגדרות הדפדפן.";
+      case "ios-install-required":
+        return "ב-iPhone או iPad יש להוסיף תחילה את האפליקציה למסך הבית ולפתוח אותה משם.";
+      case "unsupported":
+        return "הדפדפן הזה אינו תומך בהתראות Web Push.";
+    }
+  }
+
+  async function handlePushAction(action: "enable" | "test") {
+    try {
+      setPushAction(action);
+      setPushMessage(null);
+      setPushError(null);
+      const result =
+        action === "test" ? await sendTestWebPush() : await enableWebPush();
+      const message = getPushResultMessage(result, action === "test");
+      if (result === "enabled") {
+        setPushMessage(message);
+      } else {
+        setPushError(message);
+      }
+    } catch (pushNotificationError) {
+      console.error("Error enabling push notifications:", pushNotificationError);
+      setPushError("הפעלת ההתראות נכשלה. נא לנסות שוב.");
+    } finally {
+      setPushAction(null);
+    }
+  }
+
   return (
     <main
       dir="rtl"
@@ -142,6 +186,44 @@ export function SchedulePage() {
       <p className="mt-4 text-center text-lg text-gray-700">
         כאן ניתן לעדכן את שעות התרגול הקבועות לכל יום.
       </p>
+
+      <section className="mt-8 rounded-xl border border-sky-100 bg-sky-50 p-5">
+        <h2 className="text-right text-xl font-bold text-gray-900">
+          תזכורות לתרגול
+        </h2>
+        <p className="mt-2 text-right text-sm text-gray-700">
+          יש לאפשר התראות פעם אחת כדי לקבל תזכורת בשעות שבחרת, גם כשהאפליקציה
+          אינה פתוחה.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handlePushAction("enable")}
+            disabled={pushAction !== null}
+            className="rounded-lg bg-sky-600 px-5 py-3 font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {pushAction === "enable" ? "מפעיל..." : "הפעלת התראות"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handlePushAction("test")}
+            disabled={pushAction !== null}
+            className="rounded-lg border border-dashed border-amber-600 bg-amber-50 px-5 py-3 font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {pushAction === "test" ? "שולח..." : "בדיקת התראה (זמני)"}
+          </button>
+        </div>
+        {pushError && (
+          <p className="mt-4 rounded-md bg-red-50 p-3 text-center text-sm text-red-700">
+            {pushError}
+          </p>
+        )}
+        {pushMessage && (
+          <p className="mt-4 rounded-md bg-emerald-50 p-3 text-center text-sm text-emerald-700">
+            {pushMessage}
+          </p>
+        )}
+      </section>
 
       {loading && <p className="mt-8 text-center text-gray-600">טוען זמנים...</p>}
 

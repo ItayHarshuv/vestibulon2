@@ -7,7 +7,6 @@ import { SignInPage } from "./pages/SignInPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { ClinicianNewPatientPage } from "./pages/ClinicianNewPatientPage";
 import { ClinicianMenuPage } from "./pages/ClinicianMenuPage";
-import { ClinicianFeaturePlaceholderPage } from "./pages/ClinicianFeaturePlaceholderPage";
 import { ClinicianTreatmentPlanPage } from "./pages/ClinicianTreatmentPlanPage";
 import { CreditsPage } from "./pages/CreditsPage";
 import { ExerciseDescriptionPage } from "./pages/ExerciseDescriptionPage";
@@ -20,6 +19,7 @@ import { WorkoutPage } from "./pages/WorkoutPage";
 import { WorkoutFinishPage } from "./pages/WorkoutFinishPage";
 import { WorkoutRestPage } from "./pages/WorkoutRestPage";
 import { ExerciseStatisticsPage } from "./pages/ExerciseStatisticsPage";
+import { MessagesPage } from "./pages/MessagesPage";
 
 function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading, user } = useAuth();
@@ -116,8 +116,16 @@ export function App() {
             path="/clinician-menu/messages"
             element={
               <ClinicianOnly>
-                <ClinicianFeaturePlaceholderPage title="שליחת הודעות למטופל/ת" />
+                <Navigate to="/messages" replace />
               </ClinicianOnly>
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              <AuthGate>
+                <MessagesPage />
+              </AuthGate>
             }
           />
           <Route

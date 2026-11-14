@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
+import { getAuthenticatedUser, handleOptions, setApiHeaders } from "../server/auth.js";
 import {
   getSessionTimesForUser,
   updateSessionTimesForUser,
-} from "./session-times-service.js";
+} from "../server/session-times-service.js";
 import {
   getZodErrorMessage,
   sessionTimesQuerySchema,

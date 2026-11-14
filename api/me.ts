@@ -7,9 +7,9 @@ import {
   getWorkOS,
   handleOptions,
   setApiHeaders,
-} from "./auth.js";
-import { db } from "./db/index.js";
-import { users } from "./db/schema.js";
+} from "../server/auth.js";
+import { db } from "../server/db/index.js";
+import { users } from "../server/db/schema.js";
 import {
   getZodErrorMessage,
   profileQuerySchema,

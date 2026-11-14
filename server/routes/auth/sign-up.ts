@@ -1,14 +1,14 @@
 import { eq, or } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "../../../api/db/index.js";
-import { users } from "../../../api/db/schema.js";
+import { db } from "../../db/index.js";
+import { users } from "../../db/schema.js";
 import {
   getAuthenticationOptions,
   getWorkOS,
   handleOptions,
   setApiHeaders,
   setSessionCookie,
-} from "../../../api/auth.js";
+} from "../../auth.js";
 import {
   getZodErrorMessage,
   signUpRequestSchema,

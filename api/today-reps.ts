@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAuthenticatedUser, handleOptions, setApiHeaders } from "./auth.js";
-import { getDailyScheduleForUser } from "./daily-schedule-service.js";
+import { getAuthenticatedUser, handleOptions, setApiHeaders } from "../server/auth.js";
+import { getDailyScheduleForUser } from "../server/daily-schedule-service.js";
 import {
   getZodErrorMessage,
   syncTodayRepsBodySchema,

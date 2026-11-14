@@ -45,8 +45,8 @@ export function ClinicianMenuPage() {
           backDestination="/clinician-menu"
         />
         <HomeActionButton
-          to="/clinician-menu/messages"
-          label="שליחת הודעות למטופל/ת"
+          to="/messages"
+          label="שליחת הודעה למטופל/ת"
           iconSrc="/assets/icons/messages.svg"
         />
       </div>

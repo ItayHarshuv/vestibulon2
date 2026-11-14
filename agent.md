@@ -1,0 +1,1 @@
+Implement this, then start the app and verify the affected flow yourself in the browser. Read available browser and server errors, fix failures, and retry. Don’t stop after the build passes. When finished, tell me exactly what you tested and anything you couldn’t verify.

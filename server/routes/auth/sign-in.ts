@@ -6,7 +6,7 @@ import {
   handleOptions,
   setApiHeaders,
   setSessionCookie,
-} from "../../../api/auth.js";
+} from "../../auth.js";
 import {
   getZodErrorMessage,
   signInRequestSchema,

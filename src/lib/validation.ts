@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { allBackgrounds, allExPositions, exerciseTemplateNames } from "../data/content";
+import {
+  allBackgrounds,
+  allExPositions,
+  exerciseTemplateNames,
+} from "../data/content.js";
 
 function coerceObject(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -106,6 +110,68 @@ export const clinicianPatientSchema = z.object({
 
 export const clinicianPatientsResponseSchema = z.object({
   patients: z.array(clinicianPatientSchema),
+});
+
+export const chatContactSchema = z.object({
+  userId: requiredTrimmedString("Missing userId"),
+  username: requiredTrimmedString("Missing username"),
+  conversationId: z.number().int().positive().nullable(),
+});
+
+export const chatContactsResponseSchema = z.object({
+  contacts: z.array(chatContactSchema),
+});
+
+export const chatMessagesQuerySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: z.preprocess(
+      (value) => (Array.isArray(value) ? value[0] : value),
+      requiredTrimmedString("userId is required"),
+    ),
+    before: z.preprocess(
+      (value) => {
+        const rawValue: unknown = Array.isArray(value)
+          ? (value as unknown[])[0]
+          : value;
+        return rawValue === undefined ? undefined : Number(rawValue);
+      },
+      z.number().int().positive().optional(),
+    ),
+  }),
+);
+
+export const sendChatMessageBodySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: requiredTrimmedString("userId is required"),
+    body: requiredTrimmedString("יש להזין הודעה").max(
+      4000,
+      "ההודעה ארוכה מדי",
+    ),
+    clientMessageId: z.string().uuid("clientMessageId must be a UUID"),
+  }),
+);
+
+export const markChatReadBodySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    userId: requiredTrimmedString("userId is required"),
+  }),
+);
+
+export const chatMessageSchema = z.object({
+  id: z.number().int().positive(),
+  conversationId: z.number().int().positive(),
+  senderUserId: requiredTrimmedString("Missing senderUserId"),
+  body: z.string(),
+  createdAt: z.string(),
+});
+
+export const chatMessagesResponseSchema = z.object({
+  conversationId: z.number().int().positive().nullable(),
+  messages: z.array(chatMessageSchema),
+  hasMore: z.boolean(),
 });
 
 export const signInRequestSchema = signInFormSchema;
@@ -414,6 +480,19 @@ export const sessionTimeRowSchema = z.object({
 });
 export const sessionTimesResponseSchema = z.array(sessionTimeRowSchema);
 
+export const pushSubscriptionBodySchema = z.preprocess(
+  coerceObject,
+  z.object({
+    subscription: z.object({
+      endpoint: z.string().url("subscription endpoint must be a valid URL"),
+      keys: z.object({
+        p256dh: requiredTrimmedString("subscription p256dh key is required"),
+        auth: requiredTrimmedString("subscription auth key is required"),
+      }),
+    }),
+  }),
+);
+
 const updatePerformedRepBodyBaseSchema = z
   .object({
     performedRepId: integerField("performedRepId is required"),
@@ -507,6 +586,8 @@ export const performedRepsResponseSchema = z.array(apiPerformedRepSummarySchema)
 export type ApiPrescribedExercise = z.infer<typeof apiPrescribedExerciseSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;
 export type ClinicianPatient = z.infer<typeof clinicianPatientSchema>;
+export type ChatContact = z.infer<typeof chatContactSchema>;
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type SignInForm = z.infer<typeof signInFormSchema>;
 export type SignUpForm = z.infer<typeof signUpFormSchema>;
 export type UpdatePrescribedExerciseBody = z.infer<typeof updatePrescribedExerciseBodySchema>;

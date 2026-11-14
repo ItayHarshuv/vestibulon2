@@ -3,21 +3,25 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import clinicianPatientsHandler from "./api/clinician/patients";
-import clinicianTreatmentPlanHandler from "./api/clinician/treatment-plan";
+import clinicianPatientsHandler from "./server/routes/clinician/patients";
+import clinicianTreatmentPlanHandler from "./server/routes/clinician/treatment-plan";
 import sessionHandler from "./server/routes/auth/session";
 import signInHandler from "./server/routes/auth/sign-in";
 import signOutHandler from "./server/routes/auth/sign-out";
 import signUpHandler from "./server/routes/auth/sign-up";
 import passwordResetHandler from "./server/routes/auth/password-reset";
-import { callVercelApiHandler } from "./api/devAdapter";
+import { callVercelApiHandler } from "./server/devAdapter";
 import meHandler from "./api/me";
 import performedRepsHandler from "./api/performed-reps";
 import prescribedExercisesHandler from "./api/prescribed-exercises";
 import todayRepsHandler from "./api/today-reps";
 import exerciseStatisticsHandler from "./api/exercise-statistics";
 import sessionTimesHandler from "./api/session-times";
-
+import pushSubscriptionsHandler from "./server/routes/push/subscriptions";
+import pushTestHandler from "./server/routes/push/test";
+import pushRemindersHandler from "./api/cron/push-reminders";
+import chatConversationsHandler from "./server/routes/chat/conversations";
+import chatMessagesHandler from "./server/routes/chat/messages";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +48,11 @@ export default defineConfig({
           "/today-reps": todayRepsHandler,
           "/exercise-statistics": exerciseStatisticsHandler,
           "/session-times": sessionTimesHandler,
+          "/push-subscriptions": pushSubscriptionsHandler,
+          "/push-test": pushTestHandler,
+          "/cron/push-reminders": pushRemindersHandler,
+          "/chat/conversations": chatConversationsHandler,
+          "/chat/messages": chatMessagesHandler,
         };
 
         server.middlewares.use("/api", (req, res, next) => {

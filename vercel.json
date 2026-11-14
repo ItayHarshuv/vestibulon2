@@ -1,6 +1,18 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/push-reminders",
+      "schedule": "* * * * *"
+    }
+  ],
   "routes": [
     { "src": "/api/auth/(.*)", "dest": "/api/auth-router?action=$1" },
+    { "src": "/api/chat/(.*)", "dest": "/api/chat-router?action=$1" },
+    {
+      "src": "/api/clinician/(.*)",
+      "dest": "/api/clinician-router?action=$1"
+    },
+    { "src": "/api/push-(.*)", "dest": "/api/push-router?action=$1" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }

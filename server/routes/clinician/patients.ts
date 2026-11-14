@@ -1,17 +1,17 @@
 import { and, eq, or } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { db } from "../db/index.js";
-import { users } from "../db/schema.js";
+import { db } from "../../db/index.js";
+import { users } from "../../db/schema.js";
 import {
   getAuthenticatedUser,
   getWorkOS,
   handleOptions,
   setApiHeaders,
-} from "../auth.js";
+} from "../../auth.js";
 import {
   getZodErrorMessage,
   signUpRequestSchema,
-} from "../../src/lib/validation.js";
+} from "../../../src/lib/validation.js";
 
 function getWorkOSErrorCode(error: unknown) {
   if (error && typeof error === "object") {

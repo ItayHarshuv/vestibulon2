@@ -4,16 +4,16 @@ import {
   getAuthenticatedUser,
   handleOptions,
   setApiHeaders,
-} from "../auth.js";
+} from "../../auth.js";
 import {
   getTreatmentPlanForUser,
   saveTreatmentPlanForUser,
-} from "../treatment-plan-service.js";
+} from "../../treatment-plan-service.js";
 import {
   getZodErrorMessage,
   saveTreatmentPlanBodySchema,
   treatmentPlanQuerySchema,
-} from "../../src/lib/validation.js";
+} from "../../../src/lib/validation.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res, "GET,POST,OPTIONS")) {

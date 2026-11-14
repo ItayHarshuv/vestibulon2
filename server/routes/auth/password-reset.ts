@@ -4,7 +4,7 @@ import {
   getWorkOS,
   handleOptions,
   setApiHeaders,
-} from "../../../api/auth.js";
+} from "../../auth.js";
 import {
   getZodErrorMessage,
   passwordResetRequestSchema,

@@ -4,8 +4,8 @@ import {
   getAuthenticatedUser,
   handleOptions,
   setApiHeaders,
-} from "./auth.js";
-import { getExerciseStatisticsForUser } from "./exercise-statistics-service.js";
+} from "../server/auth.js";
+import { getExerciseStatisticsForUser } from "../server/exercise-statistics-service.js";
 import {
   exerciseStatisticsQuerySchema,
   getZodErrorMessage,
