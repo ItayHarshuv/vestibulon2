@@ -56,6 +56,8 @@ function formatDisplayDate(dateKey: string) {
 
 export function ExerciseStatisticsPage() {
   const { isLoading, user } = useAuth();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [patients, setPatients] = useState<ClinicianPatient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -227,6 +229,34 @@ export function ExerciseStatisticsPage() {
     };
   }, [isLoading, selectedPatientId, timeZone, user]);
 
+  async function downloadPatientData() {
+    if (exporting || user?.role !== "clinician") return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const query = new URLSearchParams({ timeZone });
+      const response = await apiFetch(
+        `/api/clinician/patient-export?${query.toString()}`,
+      );
+      if (!response.ok) throw new Error("Failed to export patient data");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "PatientPracticeData.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Allow the browser to begin reading the download before releasing it.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (downloadError) {
+      console.error("Error downloading patient data:", downloadError);
+      setExportError("הורדת קובץ הנתונים נכשלה. נסה/י שוב.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const selectedRange = useMemo(() => {
     if (dateFilter === "allTime") {
       return { startDate: null, endDate: null, isValid: true };
@@ -346,6 +376,25 @@ export function ExerciseStatisticsPage() {
 
       {user?.role === "clinician" && (
         <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <button
+            type="button"
+            onClick={() => void downloadPatientData()}
+            disabled={exporting}
+            className="mb-3 w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting
+              ? "מכין קובץ Excel..."
+              : "הורדת קובץ Excel של נתוני כל המטופלים"}
+          </button>
+          <p className="mb-4 text-sm text-gray-600">
+            הקובץ כולל את כל היסטוריית התרגול והתוכניות של כל המטופלים שלך, ללא
+            תלות במטופל או בטווח התאריכים שנבחרו. נתונים שלא נאספו יישארו ריקים.
+          </p>
+          {exportError && (
+            <p role="alert" className="mb-4 text-sm text-red-700">
+              {exportError}
+            </p>
+          )}
           <div className="flex flex-col gap-2">
             <h2 className="text-2xl font-bold text-gray-900">בחירת מטופל/ת</h2>
             <p className="text-sm text-gray-600">

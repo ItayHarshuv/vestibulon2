@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import clinicianPatientsHandler from "./server/routes/clinician/patients";
+import patientExportHandler from "./server/routes/clinician/patient-export";
 import clinicianTreatmentPlanHandler from "./server/routes/clinician/treatment-plan";
 import sessionHandler from "./server/routes/auth/session";
 import signInHandler from "./server/routes/auth/sign-in";
@@ -36,6 +37,7 @@ export default defineConfig({
       configureServer(server) {
         const apiRoutes: Record<string, ApiHandler> = {
           "/clinician/patients": clinicianPatientsHandler,
+          "/clinician/patient-export": patientExportHandler,
           "/clinician/treatment-plan": clinicianTreatmentPlanHandler,
           "/auth/session": sessionHandler,
           "/auth/sign-in": signInHandler,
@@ -68,7 +70,10 @@ export default defineConfig({
 
               await callVercelApiHandler(req, res, handler);
             } catch (error) {
-              console.error("Error handling API route in Vite dev server:", error);
+              console.error(
+                "Error handling API route in Vite dev server:",
+                error,
+              );
               if (!res.headersSent) {
                 res.statusCode = 500;
                 res.setHeader("Content-Type", "application/json");
