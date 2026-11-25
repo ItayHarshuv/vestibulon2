@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiFetch } from "~/lib/api";
+import { usePatientAppUsage } from "./usePatientAppUsage";
 import {
   authSessionResponseSchema,
   type AuthUser,
@@ -27,6 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const hasInitializedRef = useRef(false);
+  const flushAppUsage = usePatientAppUsage(
+    user?.role === "patient" ? user.id : undefined,
+  );
 
   async function refreshSession() {
     const response = await apiFetch("/api/auth/session");
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    flushAppUsage.current?.();
     const response = await apiFetch("/api/auth/sign-out", {
       method: "POST",
     });

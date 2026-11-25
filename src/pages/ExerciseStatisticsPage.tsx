@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "~/auth/AuthProvider";
 import { ExerciseStatisticsChart } from "~/components/ExerciseStatisticsChart";
 import { apiFetch } from "~/lib/api";
 import {
   clinicianPatientsResponseSchema,
   exerciseStatisticsResponseSchema,
+  practiceReviewNotificationResponseSchema,
   getZodErrorMessage,
   type ClinicianPatient,
   type ExerciseStatisticsSeries,
@@ -56,8 +57,20 @@ function formatDisplayDate(dateKey: string) {
 
 export function ExerciseStatisticsPage() {
   const { isLoading, user } = useAuth();
+  const clinicianView = useRef<{
+    clinicianId: string;
+    patientId: string;
+    viewId: string;
+    recorded: boolean;
+  } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [notificationResult, setNotificationResult] = useState<{
+    patientId: string;
+    message: string;
+    error: boolean;
+  } | null>(null);
   const [patients, setPatients] = useState<ClinicianPatient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -70,7 +83,7 @@ export function ExerciseStatisticsPage() {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const todayKey = getDateKeyInTimeZone(new Date(), timeZone);
   const selectableUsers = useMemo(() => {
-    if (!user || user.role !== "clinician") {
+    if (user?.role !== "clinician") {
       return [];
     }
 
@@ -168,18 +181,35 @@ export function ExerciseStatisticsPage() {
     }
 
     if (!user) {
+      clinicianView.current = null;
       setExercises([]);
       setLoading(false);
       return;
     }
 
-    const targetUserId = user.role === "clinician" ? selectedPatientId : user.id;
+    const targetUserId =
+      user.role === "clinician" ? selectedPatientId : user.id;
     if (!targetUserId) {
+      clinicianView.current = null;
       setExercises([]);
       setLoading(false);
       return;
     }
 
+    if (user.role !== "clinician" || targetUserId === user.id) {
+      clinicianView.current = null;
+    } else if (
+      clinicianView.current?.clinicianId !== user.id ||
+      clinicianView.current.patientId !== targetUserId
+    ) {
+      clinicianView.current = {
+        clinicianId: user.id,
+        patientId: targetUserId,
+        viewId: crypto.randomUUID(),
+        recorded: false,
+      };
+    }
+    const view = clinicianView.current;
     let isCancelled = false;
 
     void (async () => {
@@ -210,6 +240,27 @@ export function ExerciseStatisticsPage() {
         }
 
         setExercises(parsed.data.exercises);
+        if (view && !view.recorded) {
+          void (async () => {
+            const body = JSON.stringify({
+              userId: view.patientId,
+              viewId: view.viewId,
+            });
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+              const response = await apiFetch("/api/exercise-statistics", {
+                method: "PATCH",
+                body,
+                keepalive: true,
+              }).catch(() => null);
+              if (response?.ok) {
+                view.recorded = true;
+                return;
+              }
+              if (response && response.status < 500) break;
+            }
+            console.error("Failed to record patient practice review");
+          })();
+        }
       } catch (fetchError) {
         console.error("Error fetching exercise statistics:", fetchError);
         if (isCancelled) {
@@ -254,6 +305,48 @@ export function ExerciseStatisticsPage() {
       setExportError("הורדת קובץ הנתונים נכשלה. נסה/י שוב.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function sendReviewNotification() {
+    if (
+      sendingNotification ||
+      !patients.some((patient) => patient.id === selectedPatientId)
+    )
+      return;
+    const patientId = selectedPatientId;
+    setSendingNotification(true);
+    setNotificationResult(null);
+    try {
+      const response = await apiFetch("/api/exercise-statistics", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: patientId,
+          requestId: crypto.randomUUID(),
+        }),
+      });
+      if (!response.ok)
+        throw new Error("Failed to send practice review notification");
+      const result = practiceReviewNotificationResponseSchema.parse(
+        await response.json(),
+      );
+      setNotificationResult({
+        patientId,
+        message:
+          result.sent > 0
+            ? "ההתראה נשלחה למטופל/ת"
+            : "ההתראה לא נשלחה: אין למטופל/ת מכשיר עם התראות פעילות",
+        error: result.sent === 0,
+      });
+    } catch (sendError) {
+      console.error("Error sending practice review notification:", sendError);
+      setNotificationResult({
+        patientId,
+        message: "שליחת ההתראה נכשלה. נסה/י שוב.",
+        error: true,
+      });
+    } finally {
+      setSendingNotification(false);
     }
   }
 
@@ -420,12 +513,36 @@ export function ExerciseStatisticsPage() {
               </select>
             </label>
           )}
+          <button
+            type="button"
+            onClick={() => void sendReviewNotification()}
+            disabled={
+              patientsLoading ||
+              sendingNotification ||
+              !patients.some((patient) => patient.id === selectedPatientId)
+            }
+            className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {sendingNotification
+              ? "שולח התראה..."
+              : "שליחת התראה למטופל/ת שנתוני התרגול נבדקו"}
+          </button>
+          {notificationResult?.patientId === selectedPatientId && (
+            <p
+              role="status"
+              className={`mt-3 text-sm ${notificationResult.error ? "text-red-700" : "text-green-700"}`}
+            >
+              {notificationResult.message}
+            </p>
+          )}
         </section>
       )}
 
       <section className="mt-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
-          <h2 className="text-2xl font-bold text-gray-900">בחר תאריכי הצגת נתונים</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            בחר תאריכי הצגת נתונים
+          </h2>
         </div>
 
         <fieldset className="divide-y divide-gray-200">

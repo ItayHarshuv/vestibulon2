@@ -597,3 +597,17 @@ export type UpdatePerformedRepResponse = z.infer<typeof updatePerformedRepRespon
 export type ApiPerformedRepSummary = z.infer<typeof apiPerformedRepSummarySchema>;
 export type ExerciseStatisticsSeries = z.infer<typeof exerciseStatisticsSeriesSchema>;
 export type ExerciseStatisticsResponse = z.infer<typeof exerciseStatisticsResponseSchema>;
+
+export const practiceReviewViewRequestSchema = z.object({
+  userId: z.string().trim().min(1),
+  viewId: z.string().uuid(),
+});
+
+export const practiceReviewNotificationRequestSchema = z.object({
+  userId: z.string().trim().min(1),
+  requestId: z.string().uuid(),
+});
+
+export const practiceReviewNotificationResponseSchema = z.object({
+  sent: z.number().int().nonnegative(),
+});

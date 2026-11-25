@@ -10,6 +10,7 @@ import type {
   treatmentPlans,
 } from "./db/schema.js";
 import type { ExerciseStatisticsSeries } from "./exercise-statistics-service.js";
+import type { getPatientFollowUp } from "./patient-follow-up-service.js";
 
 type Plan = typeof treatmentPlans.$inferSelect;
 type Exercise = typeof treatmentPlanExercises.$inferSelect;
@@ -21,6 +22,7 @@ export type PatientExportData = {
   exercises: Exercise[];
   repetitions: Repetition[];
   statistics: ExerciseStatisticsSeries[];
+  followUp: Awaited<ReturnType<typeof getPatientFollowUp>>;
 };
 
 // Preserve the legacy column names (including spelling) for existing analyses.
@@ -147,7 +149,7 @@ export function createPatientExportWorkbook(
   }
 
   const planSheet = addSheet(`${clinicianUsername} Clinique info`, planHeaders);
-  addSheet("Notifications Info", [
+  const notificationSheet = addSheet("Notifications Info", [
     "UserCode",
     "WhichPatient",
     "TimeStemp_ReviewNotifications",
@@ -163,12 +165,21 @@ export function createPatientExportWorkbook(
   const statisticsSheet = addSheet("Patients Statistics", statisticsHeaders);
 
   for (const patient of patients) {
+    const { notifications, appUsageSeconds, totalReviews } = patient.followUp;
+    for (const { kind, sentAt } of notifications) {
+      notificationSheet.addRow([
+        clinicianUsername,
+        patient.username,
+        kind === "review" ? timestamp(sentAt) : null,
+        kind === "message" ? timestamp(sentAt) : null,
+      ]);
+    }
     followUpSheet.addRow([
       clinicianUsername,
       patient.username,
-      null,
-      null,
-      null,
+      appUsageSeconds,
+      notifications.length,
+      totalReviews,
     ]);
     const exerciseById = new Map(
       patient.exercises.map((exercise) => [exercise.id, exercise]),

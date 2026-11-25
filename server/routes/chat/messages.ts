@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   getAuthenticatedUser,
   handleOptions,
@@ -10,6 +11,8 @@ import {
   markChatRead,
   sendChatMessage,
 } from "../../chat-service.js";
+import { db } from "../../db/index.js";
+import { messages } from "../../db/schema.js";
 import { sendChatPushNotifications } from "../../web-push-service.js";
 import {
   chatMessagesQuerySchema,
@@ -74,9 +77,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body.data.body,
       body.data.clientMessageId,
     );
-    await sendChatPushNotifications(result.recipientUserId).catch((error) => {
-      console.error("Error sending chat push notification:", error);
-    });
+    if (result.isNew) {
+      const recordAcceptance =
+        user.role === "clinician"
+          ? async (sentAt: Date) => {
+              await db
+                .update(messages)
+                .set({ patientPushSentAt: sentAt })
+                .where(
+                  and(
+                    eq(messages.id, result.message.id),
+                    isNull(messages.patientPushSentAt),
+                  ),
+                );
+            }
+          : undefined;
+      await sendChatPushNotifications(
+        result.recipientUserId,
+        recordAcceptance,
+      ).catch((error) => {
+        console.error("Error sending chat push notification:", error);
+      });
+    }
     res.status(201).json({ message: result.message });
   } catch (error) {
     if (error instanceof ChatAccessError) {

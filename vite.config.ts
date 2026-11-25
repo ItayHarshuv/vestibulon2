@@ -17,6 +17,7 @@ import performedRepsHandler from "./api/performed-reps";
 import prescribedExercisesHandler from "./api/prescribed-exercises";
 import todayRepsHandler from "./api/today-reps";
 import exerciseStatisticsHandler from "./api/exercise-statistics";
+import appUsageHandler from "./api/app-usage";
 import sessionTimesHandler from "./api/session-times";
 import pushSubscriptionsHandler from "./server/routes/push/subscriptions";
 import pushTestHandler from "./server/routes/push/test";
@@ -49,6 +50,7 @@ export default defineConfig({
           "/prescribed-exercises": prescribedExercisesHandler,
           "/today-reps": todayRepsHandler,
           "/exercise-statistics": exerciseStatisticsHandler,
+          "/app-usage": appUsageHandler,
           "/session-times": sessionTimesHandler,
           "/push-subscriptions": pushSubscriptionsHandler,
           "/push-test": pushTestHandler,

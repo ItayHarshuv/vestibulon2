@@ -46,6 +46,14 @@ mock.module(new URL("./db/index.ts", import.meta.url).href, {
 mock.module(new URL("./exercise-statistics-service.ts", import.meta.url).href, {
   namedExports: { getExerciseStatisticsForUser: async () => [] },
 });
+mock.module(new URL("./patient-follow-up-service.ts", import.meta.url).href, {
+  namedExports: {
+    getPatientFollowUp: async (patientUserId: string) => {
+      assert.equal(patientUserId, "assigned-id");
+      return { notifications: [], appUsageSeconds: 0, totalReviews: 0 };
+    },
+  },
+});
 const { default: handler } =
   await import("./routes/clinician/patient-export.js");
 

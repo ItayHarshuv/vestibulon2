@@ -49,6 +49,7 @@ function fixture(): PatientExportData {
   };
   return {
     username: "מטופל",
+    followUp: { notifications: [], appUsageSeconds: 0, totalReviews: 0 },
     plans: [
       plan,
       { ...plan, id: 2, createdAt: new Date("2026-11-18T08:00:00Z") },
@@ -93,10 +94,19 @@ function fixture(): PatientExportData {
   };
 }
 
-void test("exports legacy sheets and typed repetition cells, with blanks for unrecorded telemetry", async () => {
+void test("exports legacy sheets and typed cells for repetitions and follow-up activity", async () => {
+  const patient = fixture();
+  patient.followUp = {
+    notifications: [
+      { kind: "message", sentAt: new Date("2026-11-17T08:00:00Z") },
+      { kind: "review", sentAt: new Date("2026-11-17T08:01:00Z") },
+    ],
+    appUsageSeconds: 75,
+    totalReviews: 3,
+  };
   const workbook = createPatientExportWorkbook(
     "doctor",
-    [fixture()],
+    [patient],
     "Asia/Jerusalem",
   );
   const reopened = new ExcelJS.Workbook();
@@ -141,12 +151,18 @@ void test("exports legacy sheets and typed repetition cells, with blanks for unr
       1,
     ],
   );
-  assert.equal(reopened.getWorksheet("Notifications Info")!.rowCount, 1);
+  const notifications = reopened.getWorksheet("Notifications Info")!;
+  assert.equal(notifications.rowCount, 3);
+  assert.equal(notifications.getCell("C2").value, null);
+  assert.equal(notifications.getCell("D2").value, "261117100000");
+  assert.equal(notifications.getCell("C3").value, "261117100100");
+  assert.equal(notifications.getCell("D3").value, null);
   const followUps = reopened.getWorksheet("Follow-ups by doctor")!;
   assert.equal(followUps.getCell("A2").value, "doctor");
   assert.equal(followUps.getCell("B2").value, "מטופל");
-  for (const column of ["C", "D", "E"])
-    assert.equal(followUps.getCell(`${column}2`).value, null);
+  assert.equal(followUps.getCell("C2").value, 75);
+  assert.equal(followUps.getCell("D2").value, 2);
+  assert.equal(followUps.getCell("E2").value, 3);
 });
 
 void test("includes zero symptoms, averages per-repetition VAS ratios, and leaves undefined values blank", () => {

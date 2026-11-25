@@ -205,6 +205,9 @@ export const messages = createTable(
       .references(() => users.workosUserId, { onDelete: "cascade" }),
     body: d.varchar("body", { length: 4000 }).notNull(),
     clientMessageId: d.uuid("client_message_id").notNull(),
+    patientPushSentAt: d.timestamp("patient_push_sent_at", {
+      withTimezone: true,
+    }),
     createdAt: d
       .timestamp("created_at", { withTimezone: true })
       .$defaultFn(() => new Date())
@@ -219,6 +222,86 @@ export const messages = createTable(
     uniqueIndex("messages_sender_client_uidx").on(
       t.senderUserId,
       t.clientMessageId,
+    ),
+  ],
+);
+
+export const patientPracticeReviews = createTable(
+  "patient_practice_reviews",
+  (d) => ({
+    patientUserId: d
+      .varchar("patient_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    clinicianUserId: d
+      .varchar("clinician_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    viewId: d.uuid("view_id").notNull(),
+    reviewedAt: d
+      .timestamp("reviewed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (t) => [
+    uniqueIndex("patient_practice_reviews_view_uidx").on(
+      t.patientUserId,
+      t.clinicianUserId,
+      t.viewId,
+    ),
+  ],
+);
+
+export const practiceReviewNotifications = createTable(
+  "practice_review_notifications",
+  (d) => ({
+    patientUserId: d
+      .varchar("patient_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    clinicianUserId: d
+      .varchar("clinician_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    requestId: d.uuid("request_id").notNull(),
+    requestedAt: d
+      .timestamp("requested_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    sentAt: d.timestamp("sent_at", { withTimezone: true }),
+  }),
+  (t) => [
+    uniqueIndex("practice_review_notifications_request_uidx").on(
+      t.patientUserId,
+      t.clinicianUserId,
+      t.requestId,
+    ),
+  ],
+);
+
+export const patientAppUsageIntervals = createTable(
+  "patient_app_usage_intervals",
+  (d) => ({
+    patientUserId: d
+      .varchar("patient_user_id", { length: 256 })
+      .notNull()
+      .references(() => users.workosUserId, { onDelete: "cascade" }),
+    intervalId: d.uuid("interval_id").notNull(),
+    startedAt: d.timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: d.timestamp("ended_at", { withTimezone: true }).notNull(),
+  }),
+  (t) => [
+    uniqueIndex("patient_app_usage_intervals_interval_uidx").on(
+      t.patientUserId,
+      t.intervalId,
+    ),
+    index("patient_app_usage_intervals_started_idx").on(
+      t.patientUserId,
+      t.startedAt,
+    ),
+    check(
+      "patient_app_usage_interval_duration",
+      sql`${t.endedAt} > ${t.startedAt} and ${t.endedAt} <= ${t.startedAt} + interval '30 seconds'`,
     ),
   ],
 );

@@ -267,6 +267,7 @@ export async function sendChatMessage(
       createdAt: existing.createdAt.toISOString(),
     },
     recipientUserId: otherUserId,
+    isNew: inserted !== null,
   };
 }
 

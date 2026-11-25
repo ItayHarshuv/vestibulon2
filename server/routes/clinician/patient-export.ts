@@ -14,6 +14,7 @@ import {
 } from "../../db/schema.js";
 import { getExerciseStatisticsForUser } from "../../exercise-statistics-service.js";
 import { createPatientExportWorkbook } from "../../patient-export-workbook.js";
+import { getPatientFollowUp } from "../../patient-follow-up-service.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res, "GET,OPTIONS")) return;
@@ -58,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .where(eq(treatmentPlans.patientUserId, patient.workosUserId))
         .orderBy(asc(treatmentPlans.createdAt), asc(treatmentPlans.id));
       const planIds = plans.map((plan) => plan.id);
-      const [exercises, repetitions, statistics] = await Promise.all([
+      const [exercises, repetitions, statistics, followUp] = await Promise.all([
         planIds.length
           ? db
               .select()
@@ -72,6 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .where(eq(performedReps.patientUserId, patient.workosUserId))
           .orderBy(asc(performedReps.startTime), asc(performedReps.id)),
         getExerciseStatisticsForUser(patient.workosUserId, timeZone),
+        getPatientFollowUp(patient.workosUserId),
       ]);
       data.push({
         username: patient.username,
@@ -79,6 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         exercises,
         repetitions,
         statistics,
+        followUp,
       });
     }
     const workbook = createPatientExportWorkbook(

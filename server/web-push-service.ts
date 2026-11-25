@@ -134,7 +134,11 @@ export async function sendTestPushNotifications(userId: string) {
   return subscriptions.length;
 }
 
-export async function sendChatPushNotifications(userId: string) {
+async function sendUserPushNotifications(
+  userId: string,
+  payload: object,
+  recordAcceptance?: (sentAt: Date) => Promise<void>,
+) {
   const subscriptions = await db
     .select({
       id: pushSubscriptions.id,
@@ -145,18 +149,57 @@ export async function sendChatPushNotifications(userId: string) {
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.userId, userId));
 
-  await Promise.all(
-    subscriptions.map((subscription) =>
-      sendNotification(subscription, {
-        title: "הודעה חדשה",
-        body: "מחכה לך הודעה חדשה ב-Vestibulon",
-        tag: "chat-message",
-        url: "/messages",
-      }),
-    ),
+  let acceptance: Promise<void> | undefined;
+  const results = await Promise.allSettled(
+    subscriptions.map(async (subscription) => {
+      const sent = await sendNotification(subscription, payload);
+      if (sent && recordAcceptance) {
+        acceptance ??= recordAcceptance(new Date());
+        await acceptance;
+      }
+      return sent;
+    }),
   );
+  const sent = results.filter(
+    (result) => result.status === "fulfilled" && result.value,
+  ).length;
+  if (sent === 0) {
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+  }
+  return sent;
+}
 
-  return subscriptions.length;
+export function sendChatPushNotifications(
+  userId: string,
+  recordAcceptance?: (sentAt: Date) => Promise<void>,
+) {
+  return sendUserPushNotifications(
+    userId,
+    {
+      title: "הודעה חדשה",
+      body: "מחכה לך הודעה חדשה ב-Vestibulon",
+      tag: "chat-message",
+      url: "/messages",
+    },
+    recordAcceptance,
+  );
+}
+
+export function sendPracticeReviewPushNotification(
+  patientUserId: string,
+  recordAcceptance: (sentAt: Date) => Promise<void>,
+) {
+  return sendUserPushNotifications(
+    patientUserId,
+    {
+      title: "נתוני התרגול שלך נבדקו",
+      body: "הקלינאי/ת שלך צפה/תה בנתוני התרגול שלך. אפשר לצפות בנתונים באפליקציה.",
+      tag: "practice-review",
+      url: "/exercise-statistics",
+    },
+    recordAcceptance,
+  );
 }
 
 function getLocalDateAndTime(date: Date, timeZone: string) {
